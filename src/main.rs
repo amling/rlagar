@@ -85,6 +85,8 @@ fn main() {
     //println!("Lattices {:?}", lattices);
 
     for lattice in lattices {
+        let (w, h, _sx) = lattice;
+
         let flags = Flags::new(1 << n);
         let flags = &flags;
 
@@ -119,7 +121,38 @@ fn main() {
             }).unwrap();
         }
 
-        let results: BTreeSet<_> = results.into_iter().flatten().collect();
+        let results = results.into_iter().flatten();
+        let results = results.filter(|&(s, _)| {
+            for dx in 0..w {
+                for dy in 0..h {
+                    if dx == 0 && dy == 0 {
+                        continue;
+                    }
+
+                    let mut s2 = 0;
+                    for x in 0..w {
+                        for y in 0..h {
+                            let idx = y * w + x;
+
+                            let (x2, y2) = canon_2d(lattice, x + dx, y + dy);
+                            let idx2 = y2 * w + x2;
+
+                            if (s >> idx) & 1 == 1 {
+                                s2 |= (1 << idx2);
+                            }
+                        }
+                    }
+
+                    if s == s2 {
+                        //eprintln!("Drop lattice {:?} result {} shift ({}, {}), dx, dy", lattice, s, dx, dy);
+                        return false;
+                    }
+                }
+            }
+
+            true
+        });
+        let results: BTreeSet<_> = results.collect();
         eprintln!("Lattice {:?} => {} results", lattice, results.len());
         for result in results {
             eprintln!("   {:?}", result);
@@ -127,8 +160,6 @@ fn main() {
     }
 
     // TODO: more analysis...
-
-    // first step is probably looking for [further] spatial symmetry and discarding as non-minimal
 
     // analyze connected components in space and time
     //
