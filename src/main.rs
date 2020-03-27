@@ -134,7 +134,7 @@ fn main() {
                         for y in 0..h {
                             let idx = y * w + x;
 
-                            let (x2, y2) = canon_2d(lattice, x + dx, y + dy);
+                            let (x2, y2, _, _) = canon_2d(lattice, x + dx, y + dy);
                             let idx2 = y2 * w + x2;
 
                             if (s >> idx) & 1 == 1 {
@@ -224,7 +224,7 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
             let mut s = 0;
             for dx in -1..=1 {
                 for dy in -1..=1 {
-                    let (x2, y2) = canon_2d(lattice, x + dx, y + dy);
+                    let (x2, y2, _, _) = canon_2d(lattice, x + dx, y + dy);
                     let idx2 = y2 * w + x2;
                     s += ((s0 >> idx2) & 1);
                 }
@@ -241,24 +241,30 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
     s1
 }
 
-fn canon_2d(lattice: (isize, isize, isize), x: isize, y: isize) -> (isize, isize) {
+fn canon_2d(lattice: (isize, isize, isize), x: isize, y: isize) -> (isize, isize, isize, isize) {
     let (w, h, sx) = lattice;
     let mut x = x;
     let mut y = y;
+    let mut lx = 0;
+    let mut ly = 0;
 
     while y < 0 {
         x += sx;
         y += h;
+        ly -= 1;
     }
     while y >= h {
         x -= sx;
         y -= h;
+        ly += 1;
     }
     while x < 0 {
         x += w;
+        lx -= 1;
     }
     while x >= w {
         x -= w;
+        lx += 1;
     }
-    (x, y)
+    (x, y, lx, ly)
 }
