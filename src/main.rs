@@ -40,7 +40,7 @@ fn main() {
     let n = 12;
 
     let threads = 8;
-    let workunit_bits = 2;
+    let workunit_bits = 6;
 
     let mut lattices = Vec::new();
     for w in 1..=n {
