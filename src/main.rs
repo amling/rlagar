@@ -1,4 +1,8 @@
-mod bits;
+extern crate crossbeam;
+
+use crossbeam::queue::PopError;
+use crossbeam::queue::SegQueue;
+use std::sync::atomic::AtomicU64;
 
 fn egcd(a: isize, b: isize) -> (isize, isize, isize) {
     let mut a = a.abs();
@@ -27,6 +31,9 @@ fn egcd(a: isize, b: isize) -> (isize, isize, isize) {
 
 fn main() {
     let n = 12;
+
+    let threads = 8;
+    let workunit_bits = 6;
 
     let mut lattices = Vec::new();
     for w in 1..=n {
@@ -68,6 +75,47 @@ fn main() {
             lattices.push((w, h, sx));
         }
     }
+    //println!("Lattices {:?}", lattices);
 
-    println!("Lattices {:?}", lattices);
+    for lattice in lattices {
+        let flags: Vec<_> = (0..(1 << (n - 6))).map(|_| AtomicU64::new(0)).collect();
+        let flags = &flags;
+
+        let workunits: Vec<_> = (0..(1 << workunit_bits)).collect();
+        let mut results: Vec<_> = workunits.iter().map(|_| Vec::new()).collect();
+
+        {
+            let q = SegQueue::new();
+            for tuple in workunits.into_iter().zip(results.iter_mut()) {
+                q.push(tuple);
+            }
+
+            crossbeam::scope(|sc| {
+                for _ in 0..threads {
+                    sc.spawn(|_| {
+                        loop {
+                            let (workunit, results) = match q.pop() {
+                                Result::Ok(tuple) => tuple,
+                                Result::Err(PopError) => {
+                                    return;
+                                }
+                            };
+
+                            let suffix_bits = n - workunit_bits;
+                            for suffix in 0..(1 << suffix_bits) {
+                                let s0 = (workunit << suffix_bits) | suffix;
+                                search(lattice, flags, s0, results);
+                            }
+                        }
+                    });
+                }
+            }).unwrap();
+        }
+
+        let results: Vec<_> = results.into_iter().flatten().collect();
+        eprintln!("{} results", results.len());
+    }
+}
+
+fn search(lattice: (isize, isize, isize), flags: &Vec<AtomicU64>, s0: u64, results: &mut Vec<(u64, usize)>) {
 }

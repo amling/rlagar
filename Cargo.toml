@@ -3,3 +3,6 @@ name = "rlagar"
 version = "1.0.0"
 authors = ["Keith Amling <me@amling2.org>"]
 edition = "2018"
+
+[dependencies]
+crossbeam = "=0.7.3"
