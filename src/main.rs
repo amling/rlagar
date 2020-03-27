@@ -37,7 +37,7 @@ fn egcd(a: isize, b: isize) -> (isize, isize, isize) {
 }
 
 fn main() {
-    let n = 4;
+    let n = 12;
 
     let threads = 8;
     let workunit_bits = 2;
