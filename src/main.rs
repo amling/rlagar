@@ -130,19 +130,27 @@ fn main() {
 
     // first step is probably looking for [further] spatial symmetry and discarding as non-minimal
 
-    // partition into connected components in space and time
+    // analyze connected components in space and time
+    //
+    // this is directed graph of (x, y, t) with edges labelled with lattice shift (lattice shift is
+    // number of x wraps, number of y wraps, number of t wraps)
+    //
+    // all our cells (in t = 0) had better be part of same connected component or we discard
+    // (should find connected components separately).
+    //
+    // then find cycles whose edge label sums tell us generators for "lattice of lattice shifts"
+    //
+    // These generators can be recast as actual x/y/t distances to copies of same cell that it's
+    // connected to.  Either of these lattices are the same for further purposes although latter is
+    // more human-intelligible I think.
 
-    // re-analyze period (since components could have lower individual periods than joint)
-
-    // redo connected analysis to decide connection in 3D lattice of space and time
-
-    // rank of intersection of connection lattice with t = 0 tells us...
+    // rank of intersection of this lattice with t = 0 tells us...
     //
     // zero rank: Oscillator or glider, probably discard since we don't expect any interesting
     // results.  Could analyze as oscillator/glider to give period and shift.
     //
     // one rank: Wick of some sort.  Presumably all interesting although overpop-only connection
-    // may mean a lot of boring these guys.  TBD.
+    // may mean a lot of boring stuff here.  TBD.
     //
     // two rank: Real agar.
 }
