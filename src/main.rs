@@ -144,13 +144,15 @@ fn main() {
     // connected to.  Either of these lattices are the same for further purposes although latter is
     // more human-intelligible I think.
 
-    // rank of intersection of this lattice with t = 0 tells us...
+    // rank of intersection of this connection lattice with t = 0 tells us...
     //
     // zero rank: Oscillator or glider, probably discard since we don't expect any interesting
     // results.  Could analyze as oscillator/glider to give period and shift.
     //
     // one rank: Wick of some sort.  Presumably all interesting although overpop-only connection
-    // may mean a lot of boring stuff here.  TBD.
+    // may mean a lot of boring stuff here.  Projection of connection lattice into (x, y) plane
+    // (rather than intersection with t = 0) tells us stuff here.  If it is also one rank then
+    // we've got an oscillator wick and if it's two rank we have a (sideways) moving wick.
     //
     // two rank: Real agar.
 }
