@@ -4,6 +4,7 @@ extern crate crossbeam;
 
 use crossbeam::queue::PopError;
 use crossbeam::queue::SegQueue;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 
 mod flags;
@@ -118,7 +119,7 @@ fn main() {
             }).unwrap();
         }
 
-        let results: Vec<_> = results.into_iter().flatten().collect();
+        let results: BTreeSet<_> = results.into_iter().flatten().collect();
         eprintln!("Lattice {:?} => {} results", lattice, results.len());
         for result in results {
             eprintln!("   {:?}", result);
