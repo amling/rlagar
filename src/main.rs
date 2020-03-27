@@ -241,6 +241,56 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
     s1
 }
 
+fn links(lattice: (isize, isize, isize), s0: u64) -> Vec<((isize, isize, isize), (isize, isize, isize), (isize, isize))> {
+    let (w, h, _sx) = lattice;
+    let mut nss = HashMap::new();
+    let mut links = Vec::new();
+    let mut add_link = |p1, p2, l: (isize, isize)| {
+        let (lx, ly) = l;
+        links.push((p1, p2, (lx, ly)));
+        links.push((p2, p1, (-lx, -ly)));
+    };
+    for x in 0..w {
+        for y in 0..h {
+            let idx = y * w + x;
+            if (s0 >> idx) & 1 == 1 {
+                for dx in -1..=1 {
+                    for dy in -1..=1 {
+                        let (x2, y2, lx, ly) = canon_2d(lattice, x + dx, y + dy);
+                        nss.entry((x2, y2)).or_insert_with(|| Vec::new()).push(((x, y), (-lx, -ly)));
+                    }
+                }
+            }
+        }
+    }
+    for ((x, y), ns) in nss.into_iter() {
+        let idx = y * w + x;
+        let ct = ns.len();
+        let living_curr = ((s0 >> idx) & 1 == 1);
+
+        // If we're alive or we're dead and overpopulated then link up the whole neighborhood.
+        if living_curr || ct >= 3 {
+            for &((x1, y1), (lx1, ly1)) in &ns {
+                for &((x2, y2), (lx2, ly2)) in &ns {
+                    add_link((x1, y1, 0), (x2, y2, 0), (-lx1 + lx2, -ly1 + ly2));
+                }
+            }
+        }
+        // If the future is alive, then link the neighborhood to it as well.
+        let living_next = match living_curr {
+            true => (2 <= ct && ct <= 3),
+            false => ct == 3,
+        };
+        if living_next {
+            for &((x1, y1), (lx1, ly1)) in &ns {
+                add_link((x, y, 1), (x1, y1, 0), (lx1, ly1));
+            }
+        }
+    }
+
+    links
+}
+
 fn canon_2d(lattice: (isize, isize, isize), x: isize, y: isize) -> (isize, isize, isize, isize) {
     let (w, h, sx) = lattice;
     let mut x = x;
