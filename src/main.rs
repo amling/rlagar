@@ -158,26 +158,28 @@ fn main() {
 }
 
 fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut Vec<(u64, usize)>) {
-    let mut prev = HashMap::new();
+    let mut prev_vec = Vec::new();
+    let mut prev_map = HashMap::new();
     let mut s = s0;
-    let mut t: usize = 0;
 
     loop {
         if flags.get(s) {
             break;
         }
 
-        if let Some(&t1) = prev.get(&s) {
-            results.push((s, t - t1));
+        if let Some(&idx) = prev_map.get(&s) {
+            let &sc = (&prev_vec[idx..]).iter().min().unwrap();
+            results.push((sc, prev_vec.len() - idx));
             break;
         }
 
-        prev.insert(s, t);
+        let t = prev_vec.len();
+        prev_vec.push(s);
+        prev_map.insert(s, t);
         s = tick(lattice, s);
-        t += 1;
     }
 
-    for &sp in prev.keys() {
+    for sp in prev_vec {
         flags.set(sp);
     }
 }
