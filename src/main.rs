@@ -125,6 +125,26 @@ fn main() {
             eprintln!("   {:?}", result);
         }
     }
+
+    // TODO: more analysis...
+
+    // first step is probably looking for [further] spatial symmetry and discarding as non-minimal
+
+    // partition into connected components in space and time
+
+    // re-analyze period (since components could have lower individual periods than joint)
+
+    // redo connected analysis to decide connection in 3D lattice of space and time
+
+    // rank of intersection of connection lattice with t = 0 tells us...
+    //
+    // zero rank: Oscillator or glider, probably discard since we don't expect any interesting
+    // results.  Could analyze as oscillator/glider to give period and shift.
+    //
+    // one rank: Wick of some sort.  Presumably all interesting although overpop-only connection
+    // may mean a lot of boring these guys.  TBD.
+    //
+    // two rank: Real agar.
 }
 
 fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut Vec<(u64, usize)>) {
