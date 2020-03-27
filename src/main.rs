@@ -158,15 +158,15 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
         for y in 0..h {
             let idx = y * w + x;
             let mut s = 0;
-            for dx in -1..1 {
-                for dy in -1..1 {
+            for dx in -1..=1 {
+                for dy in -1..=1 {
                     let (x2, y2) = canon_2d(lattice, x + dx, y + dy);
                     let idx2 = y2 * w + x2;
                     s += ((s0 >> idx2) & 1);
                 }
             }
             let living = match ((s0 >> idx) & 1 == 1) {
-                true => (2 <= s && s <= 3),
+                true => (3 <= s && s <= 4),
                 false => (s == 3),
             };
             if living {
