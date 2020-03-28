@@ -1,0 +1,79 @@
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::hash::Hash;
+
+pub trait LatticeResult: Clone {
+    fn zero() -> Self;
+    fn add(self, rhs: Self) -> Self;
+}
+
+impl LatticeResult for isize {
+    fn zero() -> Self {
+        0
+    }
+
+    fn add(self, rhs: Self) -> Self {
+        self + rhs
+    }
+}
+
+impl<A: LatticeResult, B: LatticeResult> LatticeResult for (A, B) {
+    fn zero() -> Self {
+        (A::zero(), B::zero())
+    }
+
+    fn add(self, rhs: Self) -> Self {
+        (self.0.add(rhs.0), self.1.add(rhs.1))
+    }
+}
+
+impl<A: LatticeResult, B: LatticeResult, C: LatticeResult> LatticeResult for (A, B, C) {
+    fn zero() -> Self {
+        (A::zero(), B::zero(), C::zero())
+    }
+
+    fn add(self, rhs: Self) -> Self {
+        (self.0.add(rhs.0), self.1.add(rhs.1), self.2.add(rhs.2))
+    }
+}
+
+pub fn search_lattice_links<N: Hash + Eq + Clone, R: LatticeResult>(links: &HashMap<N, HashSet<(N, R)>>, n: N) -> (HashSet<N>, Vec<R>) {
+    let mut acc = Vec::new();
+    let mut found = HashSet::new();
+    let mut path = Vec::new();
+    let mut path_idxs = HashMap::new();
+
+    search_lattice_links_aux(links, &mut found, &mut acc, &mut path, &mut path_idxs, n);
+
+    (found, acc)
+}
+
+fn search_lattice_links_aux<N: Hash + Eq + Clone, R: LatticeResult>(links: &HashMap<N, HashSet<(N, R)>>, found: &mut HashSet<N>, acc: &mut Vec<R>, path: &mut Vec<(N, R)>, path_idxs: &mut HashMap<N, usize>, n: N) {
+    if let Some(&idx) = path_idxs.get(&n) {
+        let mut r = R::zero();
+        for (_, r2) in &path[idx..] {
+            r = r.add(r2.clone());
+        }
+        acc.push(r);
+        return;
+    }
+
+    found.insert(n.clone());
+
+    for (n2, r) in links.get(&n).unwrap() {
+        let n2 = n2.clone();
+        let r = r.clone();
+
+        let idx = path.len();
+
+        path.push((n.clone(), r));
+        path_idxs.insert(n.clone(), idx);
+
+        search_lattice_links_aux(links, found, acc, path, path_idxs, n2);
+
+        path_idxs.remove(&n);
+        path.pop();
+    }
+
+    unimplemented!();
+}

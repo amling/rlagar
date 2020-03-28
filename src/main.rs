@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+mod algo;
 mod flags;
 
 use flags::Flags;
@@ -175,7 +176,9 @@ fn main() {
                 s1 = tick(lattice, s1);
             }
 
-            // TODO
+            if let Some(ls) = compute_lattice_links(&links) {
+                // TODO
+            }
         }
     }
 
@@ -353,4 +356,22 @@ fn canon_2d(lattice: (isize, isize, isize), x: isize, y: isize) -> (isize, isize
         lx += 1;
     }
     (x, y, lx, ly)
+}
+
+fn compute_lattice_links(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>) -> Option<Vec<(isize, isize, isize)>> {
+    let &p1 = links.keys().next().unwrap();
+
+    let (found, r) = algo::search_lattice_links(links, p1);
+
+    for &p in links.keys() {
+        if p.2 != 0 {
+            continue;
+        }
+
+        if !found.contains(&p) {
+            return None;
+        }
+    }
+
+    Some(r)
 }
