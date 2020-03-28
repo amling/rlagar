@@ -6,6 +6,7 @@ use crossbeam::queue::PopError;
 use crossbeam::queue::SegQueue;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 mod flags;
 
@@ -153,9 +154,28 @@ fn main() {
             true
         });
         let results: BTreeSet<_> = results.collect();
-        eprintln!("Lattice {:?} => {} results", lattice, results.len());
-        for result in results {
-            eprintln!("   {:?}", result);
+        //eprintln!("Lattice {:?} => {} results", lattice, results.len());
+        //for result in results {
+        //    eprintln!("   {:?}", result);
+        //}
+
+        for (s, period) in results {
+            let mut links = HashMap::new();
+            let mut s1 = s;
+            for t in 0..period {
+                for ((x1, y1, t1), links2) in compute_links(lattice, s1).into_iter() {
+                    let t1 = t + t1;
+                    let (t1, lt1) = canon_1d(period, t1);
+                    for ((x2, y2, t2), (lx, ly)) in links2.into_iter() {
+                        let t2 = t + t2;
+                        let (t2, lt2) = canon_1d(period, t2);
+                        links.entry((x1, y1, t1)).or_insert_with(|| HashSet::new()).insert(((x2, y2, t2), (lx, ly, lt2 - lt1)));
+                    }
+                }
+                s1 = tick(lattice, s1);
+            }
+
+            // TODO
         }
     }
 
@@ -188,7 +208,7 @@ fn main() {
     // two rank: Real agar.
 }
 
-fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut Vec<(u64, usize)>) {
+fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut Vec<(u64, isize)>) {
     let mut prev_vec = Vec::new();
     let mut prev_map = HashMap::new();
     let mut s = s0;
@@ -200,7 +220,7 @@ fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut 
 
         if let Some(&idx) = prev_map.get(&s) {
             let &sc = (&prev_vec[idx..]).iter().min().unwrap();
-            results.push((sc, prev_vec.len() - idx));
+            results.push((sc, (prev_vec.len() - idx) as isize));
             break;
         }
 
@@ -241,14 +261,14 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
     s1
 }
 
-fn links(lattice: (isize, isize, isize), s0: u64) -> Vec<((isize, isize, isize), (isize, isize, isize), (isize, isize))> {
+fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize))>> {
     let (w, h, _sx) = lattice;
     let mut nss = HashMap::new();
-    let mut links = Vec::new();
+    let mut links = HashMap::new();
     let mut add_link = |p1, p2, l: (isize, isize)| {
         let (lx, ly) = l;
-        links.push((p1, p2, (lx, ly)));
-        links.push((p2, p1, (-lx, -ly)));
+        links.entry(p1).or_insert_with(|| HashSet::new()).insert((p2, (lx, ly)));
+        links.entry(p2).or_insert_with(|| HashSet::new()).insert((p1, (-lx, -ly)));
     };
     for x in 0..w {
         for y in 0..h {
@@ -289,6 +309,22 @@ fn links(lattice: (isize, isize, isize), s0: u64) -> Vec<((isize, isize, isize),
     }
 
     links
+}
+
+fn canon_1d(m: isize, a: isize) -> (isize, isize) {
+    let mut a = a;
+    let mut la = 0;
+
+    while a < 0 {
+        a += m;
+        la -= 1;
+    }
+    while a >= m {
+        a -= m;
+        la += 1;
+    }
+
+    (a, la)
 }
 
 fn canon_2d(lattice: (isize, isize, isize), x: isize, y: isize) -> (isize, isize, isize, isize) {
