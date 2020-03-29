@@ -176,27 +176,23 @@ fn main() {
                 s1 = tick(lattice, s1);
             }
 
+            // links is the directed graph of (x, y, t) with edges labelled with lattice shift
+            // (lattice shift is number of x wraps, number of y wraps, number of t wraps).
+
             if let Some(ls) = compute_lattice_links(&links) {
-                // TODO
+                // These "lattice links" tell us the generators for the "lattice of lattice shifts"
+                // that connect the same cell in each fundamntal period (in the 3D lattice of space
+                // and time).  These are so far given in terms of wrap counts, not actualy x/y
+                // coordinates.
+
+                // TODO: These generators can be recast as actual x/y/t distances to copies of same
+                // cell that it's connected to.  Either of these lattices are the same for further
+                // purposes although latter is more human-intelligible I think.
             }
         }
     }
 
     // TODO: more analysis...
-
-    // analyze connected components in space and time
-    //
-    // this is directed graph of (x, y, t) with edges labelled with lattice shift (lattice shift is
-    // number of x wraps, number of y wraps, number of t wraps)
-    //
-    // all our cells (in t = 0) had better be part of same connected component or we discard
-    // (should find connected components separately).
-    //
-    // then find cycles whose edge label sums tell us generators for "lattice of lattice shifts"
-    //
-    // These generators can be recast as actual x/y/t distances to copies of same cell that it's
-    // connected to.  Either of these lattices are the same for further purposes although latter is
-    // more human-intelligible I think.
 
     // rank of intersection of this connection lattice with t = 0 tells us...
     //
@@ -369,6 +365,8 @@ fn compute_lattice_links(links: &HashMap<(isize, isize, isize), HashSet<((isize,
         }
 
         if !found.contains(&p) {
+            // All our cells (in t = 0) should have been part of same connected component or we
+            // discard since we should find connected components separately.
             return None;
         }
     }
