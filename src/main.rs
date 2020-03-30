@@ -129,7 +129,7 @@ for n in 2.. {
 
                         if s2 < s {
                             // found lower value somewhere else, drop
-                            eprintln!("Drop lattice {:?} result {}, shift ({}, {}) at t {}", lattice, s, dx, dy, t);
+                            //eprintln!("Drop lattice {:?} result {}, shift ({}, {}) at t {}", lattice, s, dx, dy, t);
                             return None;
                         }
 
@@ -137,7 +137,7 @@ for n in 2.. {
                             if t == 0 {
                                 // found extra spatial symmetry, this can be found in smaller
                                 // geometry
-                                eprintln!("Drop lattice {:?} result {} shift ({}, {})", lattice, s, dx, dy);
+                                //eprintln!("Drop lattice {:?} result {} shift ({}, {})", lattice, s, dx, dy);
                                 return None;
                             }
                             return Some((s, t, -dx, -dy));
