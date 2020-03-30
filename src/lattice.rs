@@ -1,4 +1,4 @@
-pub trait ZModule: Eq {
+pub trait ZModule: Eq + Clone {
     fn zero() -> Self;
     fn mul(&mut self, q: isize);
     fn addmul(&mut self, q: isize, b: &Self);
@@ -72,8 +72,21 @@ fn egcd_mut<R: ZModule>(a: &mut isize, b: &mut isize, ra: &mut R, rb: &mut R) {
     }
 }
 
-pub trait Canonicalizes<S> {
-    fn canonicalize(&self, s: &mut S);
+pub trait Canonicalizes<S: ZModule> {
+    fn canonicalize_mut(&self, s: &mut S);
+
+    fn canonicalize(&self, mut s: S) -> S {
+        self.canonicalize_mut(&mut s);
+        s
+    }
+
+    fn canonicalize_delta(&self, s: S) -> (S, S) {
+        let mut s2 = s.clone();
+        self.canonicalize_mut(&mut s2);
+        let mut sd = s2.clone();
+        sd.addmul(-1, &s);
+        (s, sd)
+    }
 }
 
 pub trait LatticeCanonicalizable: ZModule + Sized {
@@ -90,7 +103,7 @@ impl LatticeCanonicalizable for () {
 }
 
 impl Canonicalizes<()> for () {
-    fn canonicalize(&self, _: &mut ()) {
+    fn canonicalize_mut(&self, _: &mut ()) {
     }
 }
 
@@ -112,7 +125,7 @@ impl<S: LatticeCanonicalizable> LatticeCanonicalizable for (S, isize) {
         }).collect();
 
         let so = S::canonicalize(vs);
-        so.canonicalize(&mut l.0);
+        so.canonicalize_mut(&mut l.0);
 
         let l = match l.1 != 0 {
             true => Some(l),
@@ -127,7 +140,7 @@ impl<S: LatticeCanonicalizable> LatticeCanonicalizable for (S, isize) {
 }
 
 impl<S: LatticeCanonicalizable> Canonicalizes<(S, isize)> for (Option<(S, isize)>, S::Output) {
-    fn canonicalize(&self, (s, n): &mut (S, isize)) {
+    fn canonicalize_mut(&self, (s, n): &mut (S, isize)) {
         if let &Some((ref s1, n1)) = &self.0 {
             while *n < 0 {
                 *n += n1;
@@ -138,6 +151,59 @@ impl<S: LatticeCanonicalizable> Canonicalizes<(S, isize)> for (Option<(S, isize)
                 s.addmul(-1, s1);
             }
         }
-        self.1.canonicalize(s);
+        self.1.canonicalize_mut(s);
     }
+}
+
+type Vec0 = ();
+type Vec1 = (Vec0, isize);
+type Vec2 = (Vec1, isize);
+type Vec3 = (Vec2, isize);
+
+type Geom0 = ();
+type Geom1 = (Option<Vec1>, Geom0);
+type Geom2 = (Option<Vec2>, Geom1);
+type Geom3 = (Option<Vec3>, Geom2);
+
+pub fn vec0() -> Vec0 {
+    ()
+}
+
+pub fn vec1(x: isize) -> Vec1 {
+    (vec0(), x)
+}
+
+pub fn vec2(x: isize, y: isize) -> Vec2 {
+    (vec1(x), y)
+}
+
+pub fn vec3(x: isize, y: isize, t: isize) -> Vec3 {
+    (vec2(x, y), t)
+}
+
+pub fn unvec1(v: Vec1) -> isize {
+    let ((), x) = v;
+    x
+}
+
+pub fn unvec2(v: Vec2) -> (isize, isize) {
+    let (((), x), y) = v;
+    (x, y)
+}
+
+pub fn unvec3(v: Vec3) -> (isize, isize, isize) {
+    let ((((), x), y), t) = v;
+    (x, y, t)
+}
+
+pub fn geom1(mx: isize) -> Geom1 {
+    (Some(vec1(mx)), ())
+}
+
+pub fn geom2(mx: isize, my: isize, syx: isize) -> Geom2 {
+    (Some(vec2(syx, my)), geom1(mx))
+}
+
+pub fn geom3(mx: isize, my: isize, syx: isize, mt: isize, stx: isize, sty: isize) -> Geom3 {
+    (Some(vec3(stx, sty, mt)), geom2(mx, my, syx))
 }

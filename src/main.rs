@@ -13,6 +13,7 @@ mod flags;
 mod lattice;
 
 use flags::Flags;
+use lattice::Canonicalizes;
 use lattice::LatticeCanonicalizable;
 
 fn main() {
@@ -50,7 +51,7 @@ for n in 2.. {
             // what syx would be if we transposed
             let t_syx = s * t;
             // grumble grumble stupid mod
-            let (t_syx, _) = canon_1d(t_mx, t_syx);
+            let t_syx = lattice::unvec1(lattice::geom1(t_mx).canonicalize(lattice::vec1(t_syx)));
             // if smaller flipped...
             let t_syx = t_syx.min(t_mx - t_syx);
 
@@ -65,6 +66,7 @@ for n in 2.. {
 
     for lattice in lattices {
         let (mx, my, syx) = lattice;
+        let geometry2 = lattice::geom2(mx, my, syx);
 
         let flags = Flags::new(1 << n);
         let flags = &flags;
@@ -102,82 +104,81 @@ for n in 2.. {
 
         let results = results.into_iter().flatten();
 
-        // drop results that have an additional spatial symmetry since they'll be found in smaller
-        // geometries
-        let results = results.filter(|&(s, _)| {
-            for dx in 0..mx {
-                for dy in 0..my {
-                    if dx == 0 && dy == 0 {
-                        continue;
-                    }
+        let results = results.filter_map(|(s, _)| {
+            let mut s1 = s;
+            for t in 0.. {
+                for dx in 0..mx {
+                    for dy in 0..my {
+                        if dx == 0 && dy == 0 && t == 0 {
+                            continue;
+                        }
 
-                    let mut s2 = 0;
-                    for x in 0..mx {
-                        for y in 0..my {
-                            let idx = y * mx + x;
+                        let mut s2 = 0;
+                        for x in 0..mx {
+                            for y in 0..my {
+                                let idx = y * mx + x;
 
-                            let (x2, y2, _, _) = canon_2d(lattice, x + dx, y + dy);
-                            let idx2 = y2 * mx + x2;
+                                let (x2, y2) = lattice::unvec2(geometry2.canonicalize(lattice::vec2(x + dx, y + dy)));
+                                let idx2 = y2 * mx + x2;
 
-                            if (s >> idx) & 1 == 1 {
-                                s2 |= (1 << idx2);
+                                if (s1 >> idx) & 1 == 1 {
+                                    s2 |= (1 << idx2);
+                                }
                             }
                         }
-                    }
 
-                    if s == s2 {
-                        //eprintln!("Drop lattice {:?} result {} shift ({}, {}), dx, dy", lattice, s, dx, dy);
-                        return false;
+                        if s2 < s {
+                            // found lower value somewhere else, drop
+                            eprintln!("Drop lattice {:?} result {}, shift ({}, {}) at t {}", lattice, s, dx, dy, t);
+                            return None;
+                        }
+
+                        if s2 == s {
+                            if t == 0 {
+                                // found extra spatial symmetry, this can be found in smaller
+                                // geometry
+                                eprintln!("Drop lattice {:?} result {} shift ({}, {})", lattice, s, dx, dy);
+                                return None;
+                            }
+                            return Some((s, t, -dx, -dy));
+                        }
                     }
                 }
+
+                s1 = tick(lattice, s1);
             }
-
-            true
+            panic!();
         });
-
-        // TODO: Drop results which have a smaller shift (in any generation).  We're getting tons
-        // of duplicates that are just shifts of each other.
-
-        // TODO: compute earliest point in time where it repeats, even if shifted?  This is going
-        // to make later lattices make more sense (e.g.  right now later lattices miss such
-        // symmetries in time although our space rank analyses are still correct).  This will also
-        // let us get e.g.  spaceship velocites correct rather than multiplied up to fill spatial
-        // period.
 
         let results: BTreeSet<_> = results.collect();
         eprintln!("Lattice {:?} => {} results", lattice, results.len());
         for result in results {
             //eprintln!("   {:?}", result);
 
-            let (s, period) = result;
+            let (s, mt, stx, sty) = result;
+            let geometry3 = lattice::geom3(mx, my, syx, mt, stx, sty);
+
             let mut links = HashMap::new();
             let mut s1 = s;
-            for t in 0..period {
+            for t in 0..mt {
                 for ((x1, y1, t1), links2) in compute_links(lattice, s1).into_iter() {
                     let t1 = t + t1;
-                    let (t1, lt1) = canon_1d(period, t1);
-                    for ((x2, y2, t2), (lx, ly)) in links2.into_iter() {
+                    let ((((), cx1), cy1), ct1) = geometry3.canonicalize(((((), x1), y1), t1));
+                    for ((x2, y2, t2), (dx, dy)) in links2.into_iter() {
                         let t2 = t + t2;
-                        let (t2, lt2) = canon_1d(period, t2);
-                        links.entry((x1, y1, t1)).or_insert_with(|| HashSet::new()).insert(((x2, y2, t2), (lx, ly, lt2 - lt1)));
+                        let ((((), cx2), cy2), ct2) = geometry3.canonicalize(((((), x2), y2), t2));
+                        links.entry((cx1, cy1, ct1)).or_insert_with(|| HashSet::new()).insert(((cx2, cy2, ct2), (x2 - x1 + dx, y2 - y1 + dy, t2 - t1)));
                     }
                 }
                 s1 = tick(lattice, s1);
             }
 
-            // links is the directed graph of (x, y, t) with edges labelled with lattice shift
-            // (lattice shift is number of x wraps, number of y wraps, number of t wraps).
+            // links is the directed graph of (x, y, t) with edges labelled with absolute shift
 
             if let Some(ls) = compute_lattice_links(&links) {
-                // These "lattice links" tell us the generators for the "lattice of lattice shifts"
-                // that connect the same cell in each fundamntal period (in the 3D lattice of space
-                // and time).  These are so far given in terms of wrap counts, not actualy x/y
-                // coordinates.
-
-                // These generators can be recast as actual x/y/t distances to copies of same cell
-                // that it's connected to.  Either of these lattices are the same for further
-                // purposes (rank analysis) although latter is more human-intelligible I think.
-                let ls: Vec<_> = ls.into_iter().map(|(lx, ly, lt)| (lx * mx + ly * syx, ly * my, lt * period)).collect();
+                // These "lattice links" tell us the generators for the lattice that connects the
+                // same cell in each fundamntal period (in the 3D lattice of space and time).
+                // These are given in absolute x/y coordinates, not wrap counts.
 
                 // now reform as ((((), x), y), t) for lattice canonicalizer
                 let fl: Vec<_> = ls.iter().map(|&(x, y, t)| ((((), x), y), t)).collect();
@@ -269,7 +270,8 @@ fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut 
 }
 
 fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
-    let (mx, my, _sx) = lattice;
+    let (mx, my, sx) = lattice;
+    let geometry2 = lattice::geom2(mx, my, sx);
     let mut s1 = 0;
     for x in 0..mx {
         for y in 0..my {
@@ -277,7 +279,7 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
             let mut s = 0;
             for dx in -1..=1 {
                 for dy in -1..=1 {
-                    let (x2, y2, _, _) = canon_2d(lattice, x + dx, y + dy);
+                    let (((), x2), y2) = geometry2.canonicalize((((), x + dx), y + dy));
                     let idx2 = y2 * mx + x2;
                     s += ((s0 >> idx2) & 1);
                 }
@@ -295,7 +297,8 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
 }
 
 fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize))>> {
-    let (mx, my, _sx) = lattice;
+    let (mx, my, sx) = lattice;
+    let geometry2 = lattice::geom2(mx, my, sx);
     let mut nss = HashMap::new();
     let mut links = HashMap::new();
     let mut add_link = |p1, p2, l: (isize, isize)| {
@@ -309,8 +312,10 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
             if (s0 >> idx) & 1 == 1 {
                 for dx in -1..=1 {
                     for dy in -1..=1 {
-                        let (x2, y2, lx, ly) = canon_2d(lattice, x + dx, y + dy);
-                        nss.entry((x2, y2)).or_insert_with(|| Vec::new()).push(((x, y), (-lx, -ly)));
+                        let x2 = x + dx;
+                        let y2 = y + dy;
+                        let (((), cx2), cy2) = geometry2.canonicalize((((), x2), y2));
+                        nss.entry((cx2, cy2)).or_insert_with(|| Vec::new()).push(((x, y), (cx2 - x2, cy2 - y2)));
                     }
                 }
             }
@@ -342,50 +347,6 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
     }
 
     links
-}
-
-fn canon_1d(m: isize, a: isize) -> (isize, isize) {
-    let mut a = a;
-    let mut la = 0;
-
-    while a < 0 {
-        a += m;
-        la -= 1;
-    }
-    while a >= m {
-        a -= m;
-        la += 1;
-    }
-
-    (a, la)
-}
-
-fn canon_2d(lattice: (isize, isize, isize), x: isize, y: isize) -> (isize, isize, isize, isize) {
-    let (mx, my, syx) = lattice;
-    let mut x = x;
-    let mut y = y;
-    let mut lx = 0;
-    let mut ly = 0;
-
-    while y < 0 {
-        x += syx;
-        y += my;
-        ly -= 1;
-    }
-    while y >= my {
-        x -= syx;
-        y -= my;
-        ly += 1;
-    }
-    while x < 0 {
-        x += mx;
-        lx -= 1;
-    }
-    while x >= mx {
-        x -= mx;
-        lx += 1;
-    }
-    (x, y, lx, ly)
 }
 
 fn compute_lattice_links(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>) -> Option<Vec<(isize, isize, isize)>> {
