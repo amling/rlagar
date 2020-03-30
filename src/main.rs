@@ -198,8 +198,19 @@ fn main() {
                         // = 0) tells us stuff here.  If it is also one rank then we've got an
                         // oscillator wick and if it's two rank we have a (sideways) moving wick.
 
-                        // TODO
-                        eprintln!("   {:?}: rank one...", result);
+                        match pl.len() {
+                            1 => {
+                                eprintln!("   {:?}: rank one/one...", result);
+                                // TODO
+                            }
+                            2 => {
+                                eprintln!("   {:?}: rank one/two...", result);
+                                // TODO
+                            }
+                            _ => {
+                                panic!();
+                            }
+                        };
                     }
                     2 => {
                         // rank two: Real agar.
