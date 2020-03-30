@@ -17,7 +17,7 @@ use lattice::Canonicalizes;
 use lattice::LatticeCanonicalizable;
 
 fn main() {
-for n in 2.. {
+for n in 2..=23 {
     let threads = 8;
     let workunit_bits = 6.min(n);
 
@@ -104,7 +104,7 @@ for n in 2.. {
 
         let results = results.into_iter().flatten();
 
-        let results = results.filter_map(|(s, _)| {
+        let results = results.filter_map(|(s, period)| {
             let mut s1 = s;
             for t in 0.. {
                 for dx in 0..mx {
@@ -140,7 +140,8 @@ for n in 2.. {
                                 //eprintln!("Drop lattice {:?} result {} shift ({}, {})", lattice, s, dx, dy);
                                 return None;
                             }
-                            return Some((s, t, -dx, -dy));
+                            let (dx, dy) = lattice::unvec2(geometry2.canonicalize(lattice::vec2(-dx, -dy)));
+                            return Some((s, period, t, dx, dy));
                         }
                     }
                 }
@@ -155,7 +156,7 @@ for n in 2.. {
         for result in results {
             //eprintln!("   {:?}", result);
 
-            let (s, mt, stx, sty) = result;
+            let (s, period, mt, stx, sty) = result;
             let geometry3 = lattice::geom3(mx, my, syx, mt, stx, sty);
 
             let mut links = HashMap::new();
@@ -208,6 +209,7 @@ for n in 2.. {
                         }
                         else {
                             if stx == 0 && sty == 0 {
+                                assert_eq!(period, mt);
                                 eprintln!("   {}: oscillator, period {}", s, mt);
                             }
                             else {
@@ -224,12 +226,24 @@ for n in 2.. {
 
                         match pl.len() {
                             1 => {
-                                eprintln!("   {:?}: rank one/one...", result);
-                                // TODO
+                                let (stx, sty, mt) = fl_vt;
+                                if stx == 0 && sty == 0 && mt == 1 {
+                                    eprintln!("   {}: still life wick", s);
+                                }
+                                else {
+                                    if stx == 0 && sty == 0 {
+                                        assert_eq!(period, mt);
+                                        eprintln!("   {}: oscillator wick, period {}", s, mt);
+                                    }
+                                    else {
+                                        // not actual period when including a shift
+                                        eprintln!("   {}: shifting oscillator wick, shift ({}, {}), period {}, true period {}", s, stx, sty, mt, period);
+                                    }
+                                }
                             }
                             2 => {
-                                eprintln!("   {:?}: rank one/two...", result);
                                 // TODO
+                                eprintln!("   {:?}: space ship wick", result);
                             }
                             _ => {
                                 panic!();
