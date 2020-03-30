@@ -101,7 +101,7 @@ for n in 2.. {
 
         let results = results.into_iter().flatten();
 
-        // drop results that have an additional symmetry since they'll be found in smaller
+        // drop results that have an additional spatial symmetry since they'll be found in smaller
         // geometries
         let results = results.filter(|&(s, _)| {
             for dx in 0..w {
