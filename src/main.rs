@@ -306,7 +306,7 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
         }
         // If the future is alive, then link the neighborhood to it as well.
         let living_next = match living_curr {
-            true => (2 <= ct && ct <= 3),
+            true => (3 <= ct && ct <= 4),
             false => ct == 3,
         };
         if living_next {
