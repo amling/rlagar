@@ -135,6 +135,9 @@ fn main() {
             true
         });
 
+        // TODO: Drop results which have a smaller shift (in any generation).  We're getting tons
+        // of duplicates that are just shifts of each other.
+
         let results: BTreeSet<_> = results.collect();
         eprintln!("Lattice {:?} => {} results", lattice, results.len());
         for result in results {
