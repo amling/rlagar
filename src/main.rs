@@ -16,10 +16,9 @@ use flags::Flags;
 use lattice::LatticeCanonicalizable;
 
 fn main() {
-    let n = 12;
-
+for n in 2.. {
     let threads = 8;
-    let workunit_bits = 6;
+    let workunit_bits = 6.min(n);
 
     let mut lattices = Vec::new();
     for w in 1..=n {
@@ -232,6 +231,7 @@ fn main() {
             }
         }
     }
+}
 }
 
 fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut Vec<(u64, isize)>) {
