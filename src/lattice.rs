@@ -1,7 +1,7 @@
-pub trait ZModule {
+pub trait ZModule: Eq {
     fn zero() -> Self;
     fn mul(&mut self, q: isize);
-    fn submul(&mut self, q: isize, b: &Self);
+    fn addmul(&mut self, q: isize, b: &Self);
 }
 
 impl ZModule for () {
@@ -11,7 +11,7 @@ impl ZModule for () {
     fn mul(&mut self, _q: isize) {
     }
 
-    fn submul(&mut self, _q: isize, _b: &Self) {
+    fn addmul(&mut self, _q: isize, _b: &Self) {
     }
 }
 
@@ -24,8 +24,8 @@ impl ZModule for isize {
         *self *= q;
     }
 
-    fn submul(&mut self, q: isize, b: &Self) {
-        *self -= q * *b;
+    fn addmul(&mut self, q: isize, b: &Self) {
+        *self += q * *b;
     }
 }
 
@@ -39,9 +39,9 @@ impl<A: ZModule, B: ZModule> ZModule for (A, B) {
         self.1.mul(q);
     }
 
-    fn submul(&mut self, q: isize, b: &Self) {
-        self.0.submul(q, &b.0);
-        self.1.submul(q, &b.1);
+    fn addmul(&mut self, q: isize, b: &Self) {
+        self.0.addmul(q, &b.0);
+        self.1.addmul(q, &b.1);
     }
 }
 
@@ -65,15 +65,19 @@ fn egcd_mut<R: ZModule>(a: &mut isize, b: &mut isize, ra: &mut R, rb: &mut R) {
         let q = *b / *a;
 
         *b -= q * *a;
-        rb.submul(q, &ra);
+        rb.addmul(-q, &ra);
 
         std::mem::swap(a, b);
         std::mem::swap(ra, rb);
     }
 }
 
+pub trait Canonicalizes<S> {
+    fn canonicalize(&self, s: &mut S);
+}
+
 pub trait LatticeCanonicalizable: ZModule + Sized {
-    type Output;
+    type Output: Canonicalizes<Self>;
 
     fn canonicalize(vs: Vec<Self>) -> Self::Output;
 }
@@ -82,6 +86,11 @@ impl LatticeCanonicalizable for () {
     type Output = ();
 
     fn canonicalize(_: Vec<Self>) {
+    }
+}
+
+impl Canonicalizes<()> for () {
+    fn canonicalize(&self, _: &mut ()) {
     }
 }
 
@@ -97,18 +106,38 @@ impl<S: LatticeCanonicalizable> LatticeCanonicalizable for (S, isize) {
             egcd_mut(nv, nl, sv, sl);
         }
 
-        let l = match l.1 != 0 {
-            true => Some(l),
-            false => None,
-        };
-
         let vs = vs.into_iter().map(|(s, n)| {
             assert_eq!(0, n);
             s
         }).collect();
 
-        // TODO: canonicalize l.0 w.r.t. output of S::canonicalize(vs)
+        let so = S::canonicalize(vs);
+        so.canonicalize(&mut l.0);
 
-        (l, S::canonicalize(vs))
+        let l = match l.1 != 0 {
+            true => Some(l),
+            false => {
+                assert!(S::zero() == l.0);
+                None
+            },
+        };
+
+        (l, so)
+    }
+}
+
+impl<S: LatticeCanonicalizable> Canonicalizes<(S, isize)> for (Option<(S, isize)>, S::Output) {
+    fn canonicalize(&self, (s, n): &mut (S, isize)) {
+        if let &Some((ref s1, n1)) = &self.0 {
+            while *n < 0 {
+                *n += n1;
+                s.addmul(1, s1);
+            }
+            while *n >= n1 {
+                *n -= n1;
+                s.addmul(-1, s1);
+            }
+        }
+        self.1.canonicalize(s);
     }
 }
