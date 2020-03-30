@@ -101,6 +101,9 @@ fn main() {
         }
 
         let results = results.into_iter().flatten();
+
+        // drop results that have an additional symmetry since they'll be found in smaller
+        // geometries
         let results = results.filter(|&(s, _)| {
             for dx in 0..w {
                 for dy in 0..h {
@@ -131,6 +134,7 @@ fn main() {
 
             true
         });
+
         let results: BTreeSet<_> = results.collect();
         eprintln!("Lattice {:?} => {} results", lattice, results.len());
         for result in results {
