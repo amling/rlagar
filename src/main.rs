@@ -137,6 +137,12 @@ for n in 2.. {
         // TODO: Drop results which have a smaller shift (in any generation).  We're getting tons
         // of duplicates that are just shifts of each other.
 
+        // TODO: compute earliest point in time where it repeats, even if shifted?  This is going
+        // to make later lattices make more sense (e.g.  right now later lattices miss such
+        // symmetries in time although our space rank analyses are still correct).  This will also
+        // let us get e.g.  spaceship velocites correct rather than multiplied up to fill spatial
+        // period.
+
         let results: BTreeSet<_> = results.collect();
         eprintln!("Lattice {:?} => {} results", lattice, results.len());
         for result in results {
