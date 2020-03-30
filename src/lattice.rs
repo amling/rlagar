@@ -72,7 +72,7 @@ fn egcd_mut<R: ZModule>(a: &mut isize, b: &mut isize, ra: &mut R, rb: &mut R) {
     }
 }
 
-trait LatticeCanonicalizable: ZModule + Sized {
+pub trait LatticeCanonicalizable: ZModule + Sized {
     type Output;
 
     fn canonicalize(vs: Vec<Self>) -> Self::Output;
@@ -106,6 +106,8 @@ impl<S: LatticeCanonicalizable> LatticeCanonicalizable for (S, isize) {
             assert_eq!(0, n);
             s
         }).collect();
+
+        // TODO: canonicalize l.0 w.r.t. output of S::canonicalize(vs)
 
         (l, S::canonicalize(vs))
     }

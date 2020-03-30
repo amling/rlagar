@@ -13,6 +13,7 @@ mod flags;
 mod lattice;
 
 use flags::Flags;
+use lattice::LatticeCanonicalizable;
 
 fn main() {
     let n = 12;
@@ -131,12 +132,11 @@ fn main() {
             true
         });
         let results: BTreeSet<_> = results.collect();
-        //eprintln!("Lattice {:?} => {} results", lattice, results.len());
-        //for result in results {
-        //    eprintln!("   {:?}", result);
-        //}
+        eprintln!("Lattice {:?} => {} results", lattice, results.len());
+        for result in results {
+            //eprintln!("   {:?}", result);
 
-        for (s, period) in results {
+            let (s, period) = result;
             let mut links = HashMap::new();
             let mut s1 = s;
             for t in 0..period {
@@ -165,23 +165,55 @@ fn main() {
                 // that it's connected to.  Either of these lattices are the same for further
                 // purposes (rank analysis) although latter is more human-intelligible I think.
                 let ls: Vec<_> = ls.into_iter().map(|(lx, ly, lt)| (lx * w + ly * sx, ly * h, lt * period)).collect();
+
+                // now reform as ((((), x), y), t) for lattice canonicalizer
+                let fl: Vec<_> = ls.iter().map(|&(x, y, t)| ((((), x), y), t)).collect();
+                let fl = LatticeCanonicalizable::canonicalize(fl);
+
+                let (fl_vt, fl) = fl;
+                let fl_vt = fl_vt.unwrap();
+                let fl_vt = (((fl_vt.0).0).1, (fl_vt.0).1, fl_vt.1);
+                let fl = materialize_2d_lattice(fl);
+
+                // now collect the projected lattice
+                let pl: Vec<_> = ls.iter().map(|&(x, y, _)| (((), x), y)).collect();
+                let pl = LatticeCanonicalizable::canonicalize(pl);
+
+                let pl = materialize_2d_lattice(pl);
+
+                // now what is the rank of the intersection with t = 0?
+                match fl.len() {
+                    0 => {
+                        // rank zero: Oscillator or glider, probably discard since we don't expect
+                        // any interesting results.  Could analyze as oscillator/glider to give
+                        // period and shift.
+
+                        // TODO: care more?
+                        eprintln!("   {:?}: rank zero: fl_vt = {:?}", result, fl_vt);
+                    }
+                    1 => {
+                        // rank one: Wick of some sort.  Presumably all interesting although
+                        // overpop-only connection may mean a lot of boring stuff here.  Projection
+                        // of connection lattice into (x, y) plane (rather than intersection with t
+                        // = 0) tells us stuff here.  If it is also one rank then we've got an
+                        // oscillator wick and if it's two rank we have a (sideways) moving wick.
+
+                        // TODO
+                        eprintln!("   {:?}: rank one...", result);
+                    }
+                    2 => {
+                        // rank two: Real agar.
+
+                        // TODO
+                        eprintln!("   {:?}: rank two...", result);
+                    }
+                    _ => {
+                        panic!();
+                    }
+                };
             }
         }
     }
-
-    // TODO: more analysis...
-
-    // rank of intersection of this connection lattice with t = 0 tells us...
-    //
-    // zero rank: Oscillator or glider, probably discard since we don't expect any interesting
-    // results.  Could analyze as oscillator/glider to give period and shift.
-    //
-    // one rank: Wick of some sort.  Presumably all interesting although overpop-only connection
-    // may mean a lot of boring stuff here.  Projection of connection lattice into (x, y) plane
-    // (rather than intersection with t = 0) tells us stuff here.  If it is also one rank then
-    // we've got an oscillator wick and if it's two rank we have a (sideways) moving wick.
-    //
-    // two rank: Real agar.
 }
 
 fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut Vec<(u64, isize)>) {
@@ -349,4 +381,18 @@ fn compute_lattice_links(links: &HashMap<(isize, isize, isize), HashSet<((isize,
     }
 
     Some(r)
+}
+
+fn materialize_2d_lattice(r: (Option<(((), isize), isize)>, (Option<((), isize)>, ()))) -> Vec<(isize, isize)> {
+    let (vy, r) = r;
+    let (vx, _) = r;
+
+    let mut r = Vec::new();
+    if let Some((((), x), y)) = vy {
+        r.push((x, y));
+    }
+    if let Some(((), x)) = vx {
+        r.push((x, 0));
+    }
+    r
 }
