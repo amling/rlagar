@@ -163,10 +163,10 @@ for n in 2.. {
             for t in 0..mt {
                 for ((x1, y1, t1), links2) in compute_links(lattice, s1).into_iter() {
                     let t1 = t + t1;
-                    let ((((), cx1), cy1), ct1) = geometry3.canonicalize(((((), x1), y1), t1));
+                    let (cx1, cy1, ct1) = lattice::unvec3(geometry3.canonicalize(lattice::vec3(x1, y1, t1)));
                     for ((x2, y2, t2), (dx, dy)) in links2.into_iter() {
                         let t2 = t + t2;
-                        let ((((), cx2), cy2), ct2) = geometry3.canonicalize(((((), x2), y2), t2));
+                        let (cx2, cy2, ct2) = lattice::unvec3(geometry3.canonicalize(lattice::vec3(x2, y2, t2)));
                         links.entry((cx1, cy1, ct1)).or_insert_with(|| HashSet::new()).insert(((cx2, cy2, ct2), (x2 - x1 + dx, y2 - y1 + dy, t2 - t1)));
                     }
                 }
@@ -180,17 +180,15 @@ for n in 2.. {
                 // same cell in each fundamntal period (in the 3D lattice of space and time).
                 // These are given in absolute x/y coordinates, not wrap counts.
 
-                // now reform as ((((), x), y), t) for lattice canonicalizer
-                let fl: Vec<_> = ls.iter().map(|&(x, y, t)| ((((), x), y), t)).collect();
+                let fl: Vec<_> = ls.iter().map(|&(x, y, t)| lattice::vec3(x, y, t)).collect();
                 let fl = LatticeCanonicalizable::canonicalize(fl);
 
                 let (fl_vt, fl) = fl;
-                let fl_vt = fl_vt.unwrap();
-                let fl_vt = (((fl_vt.0).0).1, (fl_vt.0).1, fl_vt.1);
+                let fl_vt = lattice::unvec3(fl_vt.unwrap());
                 let fl = materialize_2d_lattice(fl);
 
                 // now collect the projected lattice
-                let pl: Vec<_> = ls.iter().map(|&(x, y, _)| (((), x), y)).collect();
+                let pl: Vec<_> = ls.iter().map(|&(x, y, _)| lattice::vec2(x, y)).collect();
                 let pl = LatticeCanonicalizable::canonicalize(pl);
 
                 let pl = materialize_2d_lattice(pl);
@@ -279,7 +277,7 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
             let mut s = 0;
             for dx in -1..=1 {
                 for dy in -1..=1 {
-                    let (((), x2), y2) = geometry2.canonicalize((((), x + dx), y + dy));
+                    let (x2, y2) = lattice::unvec2(geometry2.canonicalize(lattice::vec2(x + dx, y + dy)));
                     let idx2 = y2 * mx + x2;
                     s += ((s0 >> idx2) & 1);
                 }
@@ -314,7 +312,7 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
                     for dy in -1..=1 {
                         let x2 = x + dx;
                         let y2 = y + dy;
-                        let (((), cx2), cy2) = geometry2.canonicalize((((), x2), y2));
+                        let (cx2, cy2) = lattice::unvec2(geometry2.canonicalize(lattice::vec2(x2, y2)));
                         nss.entry((cx2, cy2)).or_insert_with(|| Vec::new()).push(((x, y), (cx2 - x2, cy2 - y2)));
                     }
                 }
@@ -374,11 +372,11 @@ fn materialize_2d_lattice(r: (Option<(((), isize), isize)>, (Option<((), isize)>
     let (vx, _) = r;
 
     let mut r = Vec::new();
-    if let Some((((), x), y)) = vy {
-        r.push((x, y));
+    if let Some(vy) = vy {
+        r.push(lattice::unvec2(vy));
     }
-    if let Some(((), x)) = vx {
-        r.push((x, 0));
+    if let Some(vx) = vx {
+        r.push((lattice::unvec1(vx), 0));
     }
     r
 }
