@@ -200,8 +200,20 @@ for n in 2.. {
                         // any interesting results.  Could analyze as oscillator/glider to give
                         // period and shift.
 
-                        // TODO: care more?
-                        eprintln!("   {:?}: rank zero: fl_vt = {:?}", result, fl_vt);
+                        let (stx, sty, mt) = fl_vt;
+                        if mt == 1 {
+                            assert_eq!(0, stx);
+                            assert_eq!(0, sty);
+                            eprintln!("   {}: still life", s);
+                        }
+                        else {
+                            if stx == 0 && sty == 0 {
+                                eprintln!("   {}: oscillator, period {}", s, mt);
+                            }
+                            else {
+                                eprintln!("   {}: space ship, shift ({}, {}), period {}", s, stx, sty, mt);
+                            }
+                        }
                     }
                     1 => {
                         // rank one: Wick of some sort.  Presumably all interesting although
