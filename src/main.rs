@@ -21,49 +21,50 @@ for n in 2.. {
     let workunit_bits = 6.min(n);
 
     let mut lattices = Vec::new();
-    for w in 1..=n {
-        if n % w != 0 {
+    for mx in 1..=n {
+        if n % mx != 0 {
             continue;
         }
 
-        let h = n / w;
+        let my = n / mx;
 
-        for sx in 0..w {
-            if 2 * sx > w {
+        // syx is the shift in the x direction when we wrap in the y direction
+        for syx in 0..mx {
+            if 2 * syx > mx {
                 // don't bother with shifts over half, instead we'll find whatever flipped
                 continue;
             }
 
-            let (d, _, (s, t)) = lattice::egcd(sx, w, (1, 0), (0, 1));
-            // d = s * sx + t * w
+            let (d, _, (s, t)) = lattice::egcd(syx, mx, (1, 0), (0, 1));
+            // d = s * syx + t * mx
 
-            // (w, 0), (sx, h)
-            // (w, 0), (sx, h), (sx * w / d, h * w / d), (s * sx + t * w, s * h + t * 0)
-            // (w, 0), (sx, h), (sx/d * w, h * w / d), (d, s * h)
-            // (w, 0), (sx, h), (0, h * w / d), (d, s * h)
+            // (mx, 0), (syx, my)
+            // (mx, 0), (syx, my), (syx * mx / d, my * mx / d), (s * syx + t * mx, s * my + t * 0)
+            // (mx, 0), (syx, my), (syx/d * mx, my * mx / d), (d, s * my)
+            // (mx, 0), (syx, my), (0, my * mx / d), (d, s * my)
 
-            // the order stepping vertically, what w would be if we transposed
-            let wt = h * w / d;
+            // the order stepping vertically, what mx would be if we transposed
+            let t_mx = my * mx / d;
             // the rest...
             let ht = d;
-            // what sx would be if we transposed
-            let sxt = s * t;
+            // what syx would be if we transposed
+            let t_syx = s * t;
             // grumble grumble stupid mod
-            let sxt = ((sxt % wt) + wt) % wt;
+            let (t_syx, _) = canon_1d(t_mx, t_syx);
             // if smaller flipped...
-            let sxt = sxt.min(wt - sxt);
+            let t_syx = t_syx.min(t_mx - t_syx);
 
-            if (-wt, ht, sxt) < (-w, ht, sx) {
+            if (-t_mx, ht, t_syx) < (-mx, ht, syx) {
                 continue;
             }
 
-            lattices.push((w, h, sx));
+            lattices.push((mx, my, syx));
         }
     }
     //println!("Lattices {:?}", lattices);
 
     for lattice in lattices {
-        let (w, h, sx) = lattice;
+        let (mx, my, syx) = lattice;
 
         let flags = Flags::new(1 << n);
         let flags = &flags;
@@ -104,19 +105,19 @@ for n in 2.. {
         // drop results that have an additional spatial symmetry since they'll be found in smaller
         // geometries
         let results = results.filter(|&(s, _)| {
-            for dx in 0..w {
-                for dy in 0..h {
+            for dx in 0..mx {
+                for dy in 0..my {
                     if dx == 0 && dy == 0 {
                         continue;
                     }
 
                     let mut s2 = 0;
-                    for x in 0..w {
-                        for y in 0..h {
-                            let idx = y * w + x;
+                    for x in 0..mx {
+                        for y in 0..my {
+                            let idx = y * mx + x;
 
                             let (x2, y2, _, _) = canon_2d(lattice, x + dx, y + dy);
-                            let idx2 = y2 * w + x2;
+                            let idx2 = y2 * mx + x2;
 
                             if (s >> idx) & 1 == 1 {
                                 s2 |= (1 << idx2);
@@ -176,7 +177,7 @@ for n in 2.. {
                 // These generators can be recast as actual x/y/t distances to copies of same cell
                 // that it's connected to.  Either of these lattices are the same for further
                 // purposes (rank analysis) although latter is more human-intelligible I think.
-                let ls: Vec<_> = ls.into_iter().map(|(lx, ly, lt)| (lx * w + ly * sx, ly * h, lt * period)).collect();
+                let ls: Vec<_> = ls.into_iter().map(|(lx, ly, lt)| (lx * mx + ly * syx, ly * my, lt * period)).collect();
 
                 // now reform as ((((), x), y), t) for lattice canonicalizer
                 let fl: Vec<_> = ls.iter().map(|&(x, y, t)| ((((), x), y), t)).collect();
@@ -268,16 +269,16 @@ fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut 
 }
 
 fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
-    let (w, h, _sx) = lattice;
+    let (mx, my, _sx) = lattice;
     let mut s1 = 0;
-    for x in 0..w {
-        for y in 0..h {
-            let idx = y * w + x;
+    for x in 0..mx {
+        for y in 0..my {
+            let idx = y * mx + x;
             let mut s = 0;
             for dx in -1..=1 {
                 for dy in -1..=1 {
                     let (x2, y2, _, _) = canon_2d(lattice, x + dx, y + dy);
-                    let idx2 = y2 * w + x2;
+                    let idx2 = y2 * mx + x2;
                     s += ((s0 >> idx2) & 1);
                 }
             }
@@ -294,7 +295,7 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
 }
 
 fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize))>> {
-    let (w, h, _sx) = lattice;
+    let (mx, my, _sx) = lattice;
     let mut nss = HashMap::new();
     let mut links = HashMap::new();
     let mut add_link = |p1, p2, l: (isize, isize)| {
@@ -302,9 +303,9 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
         links.entry(p1).or_insert_with(|| HashSet::new()).insert((p2, (lx, ly)));
         links.entry(p2).or_insert_with(|| HashSet::new()).insert((p1, (-lx, -ly)));
     };
-    for x in 0..w {
-        for y in 0..h {
-            let idx = y * w + x;
+    for x in 0..mx {
+        for y in 0..my {
+            let idx = y * mx + x;
             if (s0 >> idx) & 1 == 1 {
                 for dx in -1..=1 {
                     for dy in -1..=1 {
@@ -316,7 +317,7 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
         }
     }
     for ((x, y), ns) in nss.into_iter() {
-        let idx = y * w + x;
+        let idx = y * mx + x;
         let ct = ns.len();
         let living_curr = ((s0 >> idx) & 1 == 1);
 
@@ -360,28 +361,28 @@ fn canon_1d(m: isize, a: isize) -> (isize, isize) {
 }
 
 fn canon_2d(lattice: (isize, isize, isize), x: isize, y: isize) -> (isize, isize, isize, isize) {
-    let (w, h, sx) = lattice;
+    let (mx, my, syx) = lattice;
     let mut x = x;
     let mut y = y;
     let mut lx = 0;
     let mut ly = 0;
 
     while y < 0 {
-        x += sx;
-        y += h;
+        x += syx;
+        y += my;
         ly -= 1;
     }
-    while y >= h {
-        x -= sx;
-        y -= h;
+    while y >= my {
+        x -= syx;
+        y -= my;
         ly += 1;
     }
     while x < 0 {
-        x += w;
+        x += mx;
         lx -= 1;
     }
-    while x >= w {
-        x -= w;
+    while x >= mx {
+        x -= mx;
         lx += 1;
     }
     (x, y, lx, ly)
