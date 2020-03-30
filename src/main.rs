@@ -10,33 +10,9 @@ use std::collections::HashSet;
 
 mod algo;
 mod flags;
+mod lattice;
 
 use flags::Flags;
-
-fn egcd(a: isize, b: isize) -> (isize, isize, isize) {
-    let mut a = a.abs();
-    let mut b = b.abs();
-
-    let mut sa = 1;
-    let mut ta = 0;
-
-    let mut sb = 0;
-    let mut tb = 1;
-
-    while a > 0 {
-        let q = b / a;
-
-        sb -= sa * q;
-        tb -= ta * q;
-        b -= a * q;
-
-        std::mem::swap(&mut sa, &mut sb);
-        std::mem::swap(&mut ta, &mut tb);
-        std::mem::swap(&mut a, &mut b);
-    }
-
-    (b, sb, tb)
-}
 
 fn main() {
     let n = 12;
@@ -58,7 +34,7 @@ fn main() {
                 continue;
             }
 
-            let (d, s, t) = egcd(sx, w);
+            let (d, _, (s, t)) = lattice::egcd(sx, w, (1, 0), (0, 1));
             // d = s * sx + t * w
 
             // (w, 0), (sx, h)
