@@ -87,7 +87,7 @@ fn main() {
     //println!("Lattices {:?}", lattices);
 
     for lattice in lattices {
-        let (w, h, _sx) = lattice;
+        let (w, h, sx) = lattice;
 
         let flags = Flags::new(1 << n);
         let flags = &flags;
@@ -185,9 +185,10 @@ fn main() {
                 // and time).  These are so far given in terms of wrap counts, not actualy x/y
                 // coordinates.
 
-                // TODO: These generators can be recast as actual x/y/t distances to copies of same
-                // cell that it's connected to.  Either of these lattices are the same for further
-                // purposes although latter is more human-intelligible I think.
+                // These generators can be recast as actual x/y/t distances to copies of same cell
+                // that it's connected to.  Either of these lattices are the same for further
+                // purposes (rank analysis) although latter is more human-intelligible I think.
+                let ls: Vec<_> = ls.into_iter().map(|(lx, ly, lt)| (lx * w + ly * sx, ly * h, lt * period)).collect();
             }
         }
     }
