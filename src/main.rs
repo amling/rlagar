@@ -11,6 +11,7 @@ use std::collections::HashSet;
 mod algo;
 mod flags;
 mod lattice;
+mod tuple;
 
 use flags::Flags;
 use lattice::Canonicalizes;

@@ -1,3 +1,7 @@
+use crate::tuple;
+
+use tuple::TupleEnd;
+
 pub trait ZModule: Eq + Clone {
     fn zero() -> Self;
     fn mul(&mut self, q: isize);
@@ -73,16 +77,11 @@ fn egcd_mut<R: ZModule>(a: &mut isize, b: &mut isize, ra: &mut R, rb: &mut R) {
 }
 
 pub trait Canonicalizes<S: ZModule> {
-    fn canonicalize_mut(&self, s: &mut S);
-
-    fn canonicalize(&self, mut s: S) -> S {
-        self.canonicalize_mut(&mut s);
-        s
-    }
+    fn canonicalize(&self, s: S) -> S;
 
     fn canonicalize_delta(&self, s: S) -> (S, S) {
         let mut s2 = s.clone();
-        self.canonicalize_mut(&mut s2);
+        s2 = self.canonicalize(s2);
         let mut sd = s2.clone();
         sd.addmul(-1, &s);
         (s, sd)
@@ -103,15 +102,17 @@ impl LatticeCanonicalizable for () {
 }
 
 impl Canonicalizes<()> for () {
-    fn canonicalize_mut(&self, _: &mut ()) {
+    fn canonicalize(&self, _: ()) -> () {
     }
 }
 
-impl<S: LatticeCanonicalizable> LatticeCanonicalizable for (S, isize) {
-    type Output = (Option<(S, isize)>, S::Output);
+impl<S: LatticeCanonicalizable, T: ZModule + TupleEnd<isize, F=S>> LatticeCanonicalizable for T {
+    type Output = (Option<T>, S::Output);
 
-    fn canonicalize(mut vs: Vec<(S, isize)>) -> (Option<(S, isize)>, S::Output) {
+    fn canonicalize(vs: Vec<T>) -> (Option<T>, S::Output) {
         let mut l = (S::zero(), 0);
+
+        let mut vs: Vec<_> = vs.into_iter().map(|t| T::split_tuple_end(t)).collect();
 
         for v in vs.iter_mut() {
             let (sv, nv) = v;
@@ -125,10 +126,9 @@ impl<S: LatticeCanonicalizable> LatticeCanonicalizable for (S, isize) {
         }).collect();
 
         let so = S::canonicalize(vs);
-        so.canonicalize_mut(&mut l.0);
 
         let l = match l.1 != 0 {
-            true => Some(l),
+            true => Some(T::join_tuple_end(so.canonicalize(l.0), l.1)),
             false => {
                 assert!(S::zero() == l.0);
                 None
@@ -139,19 +139,23 @@ impl<S: LatticeCanonicalizable> LatticeCanonicalizable for (S, isize) {
     }
 }
 
-impl<S: LatticeCanonicalizable> Canonicalizes<(S, isize)> for (Option<(S, isize)>, S::Output) {
-    fn canonicalize_mut(&self, (s, n): &mut (S, isize)) {
-        if let &Some((ref s1, n1)) = &self.0 {
-            while *n < 0 {
-                *n += n1;
-                s.addmul(1, s1);
+impl<S: LatticeCanonicalizable, T: ZModule + TupleEnd<isize, F=S>> Canonicalizes<T> for (Option<T>, S::Output) {
+    fn canonicalize(&self, t: T) -> T {
+        let (mut s, mut n) = T::split_tuple_end(t);
+        if let Some(t) = &self.0 {
+            let (s1, n1) = T::split_tuple_end(t.clone());
+
+            while n < 0 {
+                n += n1;
+                s.addmul(1, &s1);
             }
-            while *n >= n1 {
-                *n -= n1;
-                s.addmul(-1, s1);
+            while n >= n1 {
+                n -= n1;
+                s.addmul(-1, &s1);
             }
         }
-        self.1.canonicalize_mut(s);
+        s = self.1.canonicalize(s);
+        T::join_tuple_end(s, n)
     }
 }
 
