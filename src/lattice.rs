@@ -1,6 +1,7 @@
 use crate::tuple;
 
 use tuple::TupleEnd;
+use tuple::CTupleEnd;
 
 pub trait ZModule: Eq + Clone {
     fn zero() -> Self;
@@ -33,37 +34,24 @@ impl ZModule for isize {
     }
 }
 
-impl<A: ZModule, B: ZModule> ZModule for (A, B) {
+impl<X: ZModule, Y: ZModule, T: CTupleEnd<F=X, B=Y> + Clone + Eq> ZModule for T {
     fn zero() -> Self {
-        (A::zero(), B::zero())
+        T::join_tuple_end(X::zero(), Y::zero())
     }
 
     fn mul(&mut self, q: isize) {
-        self.0.mul(q);
-        self.1.mul(q);
+        let (mut x, mut y) = T::split_tuple_end(self.clone());
+        x.mul(q);
+        y.mul(q);
+        *self = T::join_tuple_end(x, y);
     }
 
     fn addmul(&mut self, q: isize, b: &Self) {
-        self.0.addmul(q, &b.0);
-        self.1.addmul(q, &b.1);
-    }
-}
-
-impl<A: ZModule, B: ZModule, C: ZModule> ZModule for (A, B, C) {
-    fn zero() -> Self {
-        (A::zero(), B::zero(), C::zero())
-    }
-
-    fn mul(&mut self, q: isize) {
-        self.0.mul(q);
-        self.1.mul(q);
-        self.2.mul(q);
-    }
-
-    fn addmul(&mut self, q: isize, b: &Self) {
-        self.0.addmul(q, &b.0);
-        self.1.addmul(q, &b.1);
-        self.2.addmul(q, &b.2);
+        let (mut x, mut y) = T::split_tuple_end(self.clone());
+        let (bx, by) = T::split_tuple_end(b.clone());
+        x.addmul(q, &bx);
+        y.addmul(q, &by);
+        *self = T::join_tuple_end(x, y);
     }
 }
 
