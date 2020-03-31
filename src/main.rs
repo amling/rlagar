@@ -167,10 +167,15 @@ let t0 = std::time::Instant::now();
                 for ((x1, y1, t1), links2) in compute_links(lattice, s1).into_iter() {
                     let t1 = t + t1;
                     let (cx1, cy1, ct1) = geometry3.canonicalize((x1, y1, t1));
-                    for ((x2, y2, t2), (dx, dy)) in links2.into_iter() {
+                    for ((x2, y2, t2), (lx, ly)) in links2.into_iter() {
                         let t2 = t + t2;
                         let (cx2, cy2, ct2) = geometry3.canonicalize((x2, y2, t2));
-                        links.entry((cx1, cy1, ct1)).or_insert_with(|| HashSet::new()).insert(((cx2, cy2, ct2), (x2 - x1 + dx, y2 - y1 + dy, t2 - t1)));
+
+                        let rx = (cx1 - x1) + lx + (x2 - cx2);
+                        let ry = (cy1 - y1) + ly + (y2 - cy2);
+                        let rt = (ct1 - t1) + (t2 - ct2);
+
+                        links.entry((cx1, cy1, ct1)).or_insert_with(|| HashSet::new()).insert(((cx2, cy2, ct2), (rx, ry, rt)));
                     }
                 }
                 s1 = tick(lattice, s1);
