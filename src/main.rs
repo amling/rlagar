@@ -1,5 +1,8 @@
 #![allow(unused_parens)]
 
+#[macro_use]
+extern crate ars_ds;
+
 use ars_ds::tuple::Tuple1;
 use crossbeam::queue::PopError;
 use crossbeam::queue::SegQueue;
