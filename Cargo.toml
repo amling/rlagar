@@ -9,3 +9,6 @@ crossbeam = "=0.7.3"
 ars_aa = { path = "ars/aa" }
 ars_ds = { path = "ars/ds" }
 ars_graph = { path = "ars/graph" }
+
+[profile.release]
+lto = true
