@@ -1,64 +1,13 @@
+use ars_aa::zmodule::ZModule;
 use ars_ds::tuple::CTupleEnd;
 use ars_ds::tuple::Tuple1;
 
-// TODO: move this IsTuple hack into macro in ars crate
+// TODO: move this IsTuple hack into macro in ars_ds crate
 // is_tuple_trait!(IsTuple)
 pub trait IsTuple { }
 impl<A> IsTuple for Tuple1<A> { }
 impl<A, B> IsTuple for (A, B) { }
 impl<A, B, C> IsTuple for (A, B, C) { }
-
-pub trait ZModule: Eq + Clone {
-    fn zero() -> Self;
-    fn mul(&mut self, q: isize);
-    fn addmul(&mut self, q: isize, b: &Self);
-}
-
-impl ZModule for () {
-    fn zero() {
-    }
-
-    fn mul(&mut self, _q: isize) {
-    }
-
-    fn addmul(&mut self, _q: isize, _b: &Self) {
-    }
-}
-
-impl ZModule for isize {
-    fn zero() -> Self {
-        0
-    }
-
-    fn mul(&mut self, q: isize) {
-        *self *= q;
-    }
-
-    fn addmul(&mut self, q: isize, b: &Self) {
-        *self += q * *b;
-    }
-}
-
-impl<X: ZModule, Y: ZModule, T: CTupleEnd<F=X, B=Y> + Clone + Eq + IsTuple> ZModule for T {
-    fn zero() -> Self {
-        T::join_tuple_end(X::zero(), Y::zero())
-    }
-
-    fn mul(&mut self, q: isize) {
-        let (mut x, mut y) = T::split_tuple_end(self.clone());
-        x.mul(q);
-        y.mul(q);
-        *self = T::join_tuple_end(x, y);
-    }
-
-    fn addmul(&mut self, q: isize, b: &Self) {
-        let (mut x, mut y) = T::split_tuple_end(self.clone());
-        let (bx, by) = T::split_tuple_end(b.clone());
-        x.addmul(q, &bx);
-        y.addmul(q, &by);
-        *self = T::join_tuple_end(x, y);
-    }
-}
 
 pub fn egcd<R: ZModule>(mut a: isize, mut b: isize, mut ra: R, mut rb: R) -> (isize, R, R) {
     egcd_mut(&mut a, &mut b, &mut ra, &mut rb);
@@ -87,7 +36,7 @@ fn egcd_mut<R: ZModule>(a: &mut isize, b: &mut isize, ra: &mut R, rb: &mut R) {
     }
 }
 
-pub trait Canonicalizes<S: ZModule> {
+pub trait Canonicalizes<S: ZModule + Clone> {
     fn canonicalize(&self, s: S) -> S;
 
     fn canonicalize_delta(&self, s: S) -> (S, S) {
@@ -99,7 +48,7 @@ pub trait Canonicalizes<S: ZModule> {
     }
 }
 
-pub trait LatticeCanonicalizable: ZModule + Sized {
+pub trait LatticeCanonicalizable: ZModule + Clone + Sized {
     type Output: Canonicalizes<Self>;
 
     fn canonicalize(vs: Vec<Self>) -> Self::Output;
@@ -117,7 +66,7 @@ impl Canonicalizes<()> for () {
     }
 }
 
-impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize> + IsTuple> LatticeCanonicalizable for T {
+impl<S: LatticeCanonicalizable + Eq, T: ZModule + CTupleEnd<F=S, B=isize> + IsTuple + Clone> LatticeCanonicalizable for T {
     type Output = (Option<T>, S::Output);
 
     fn canonicalize(vs: Vec<T>) -> (Option<T>, S::Output) {
@@ -150,7 +99,7 @@ impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize> + IsTuple> 
     }
 }
 
-impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize>> Canonicalizes<T> for (Option<T>, S::Output) {
+impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize> + Clone> Canonicalizes<T> for (Option<T>, S::Output) {
     fn canonicalize(&self, t: T) -> T {
         let (mut s, mut n) = T::split_tuple_end(t);
         if let Some(t) = &self.0 {
