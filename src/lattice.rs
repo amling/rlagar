@@ -72,6 +72,7 @@ impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize> + Clone> Ca
         if let Some(t) = &self.0 {
             let (s1, n1) = T::split_tuple_end(t.clone());
 
+            // unbelievably, this absolutely smokes using div_euclid
             while n < 0 {
                 n += n1;
                 s.addmul(1, &s1);
