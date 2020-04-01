@@ -384,7 +384,7 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
 fn compute_lattice_links(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>) -> Option<Vec<(isize, isize, isize)>> {
     let &p1 = links.keys().next().unwrap();
 
-    let connected = ars_aa::misc::find_connected_weights(links, p1);
+    let connected = ars_graph::weighted::find_connected(links, p1);
 
     for &p in links.keys() {
         if p.2 != 0 {
@@ -398,7 +398,7 @@ fn compute_lattice_links(links: &HashMap<(isize, isize, isize), HashSet<((isize,
         }
     }
 
-    Some(ars_aa::misc::find_cycle_weight_generators(links, p1))
+    Some(ars_graph::weighted::find_cycle_generators(links, p1))
 }
 
 fn materialize_2d_lattice(r: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ()))) -> Vec<(isize, isize)> {

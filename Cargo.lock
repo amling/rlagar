@@ -12,6 +12,13 @@ name = "ars_ds"
 version = "1.0.0"
 
 [[package]]
+name = "ars_graph"
+version = "1.0.0"
+dependencies = [
+ "ars_aa 1.0.0",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -110,6 +117,7 @@ version = "1.0.0"
 dependencies = [
  "ars_aa 1.0.0",
  "ars_ds 1.0.0",
+ "ars_graph 1.0.0",
  "crossbeam 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
