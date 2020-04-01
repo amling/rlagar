@@ -1,7 +1,9 @@
 #![allow(unused_parens)]
 
+extern crate ars_ds;
 extern crate crossbeam;
 
+use ars_ds::tuple::Tuple1;
 use crossbeam::queue::PopError;
 use crossbeam::queue::SegQueue;
 use std::collections::BTreeSet;
@@ -11,7 +13,6 @@ use std::collections::HashSet;
 mod algo;
 mod flags;
 mod lattice;
-mod tuple;
 
 use flags::Flags;
 use lattice::Canonicalizes;
@@ -53,7 +54,7 @@ let t0 = std::time::Instant::now();
             // what syx would be if we transposed
             let t_syx = s * t;
             // grumble grumble stupid mod
-            let t_syx = (Some(t_mx), ()).canonicalize(t_syx);
+            let t_syx = (Some(Tuple1(t_mx)), ()).canonicalize(Tuple1(t_syx)).0;
             // if smaller flipped...
             let t_syx = t_syx.min(t_mx - t_syx);
 
@@ -68,7 +69,7 @@ let t0 = std::time::Instant::now();
 
     for lattice in lattices {
         let (mx, my, syx) = lattice;
-        let geometry2 = (Some((syx, my)), (Some(mx), ()));
+        let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
 
         let flags = Flags::new(1 << n);
         let flags = &flags;
@@ -159,7 +160,7 @@ let t0 = std::time::Instant::now();
             //eprintln!("   {:?}", result);
 
             let (s, period, mt, stx, sty) = result;
-            let geometry3 = (Some((stx, sty, mt)), (Some((syx, my)), (Some(mx), ())));
+            let geometry3 = (Some((stx, sty, mt)), (Some((syx, my)), (Some(Tuple1(mx)), ())));
 
             let mut links = HashMap::new();
             let mut s1 = s;
@@ -303,7 +304,7 @@ fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut 
 
 fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
     let (mx, my, syx) = lattice;
-    let geometry2 = (Some((syx, my)), (Some(mx), ()));
+    let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
     let mut s1 = 0;
     for x in 0..mx {
         for y in 0..my {
@@ -330,7 +331,7 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
 
 fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize))>> {
     let (mx, my, syx) = lattice;
-    let geometry2 = (Some((syx, my)), (Some(mx), ()));
+    let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
     let mut nss = HashMap::new();
     let mut links = HashMap::new();
     let mut add_link = |p1, p2, l: (isize, isize)| {
@@ -401,7 +402,7 @@ fn compute_lattice_links(links: &HashMap<(isize, isize, isize), HashSet<((isize,
     Some(r)
 }
 
-fn materialize_2d_lattice(r: (Option<(isize, isize)>, (Option<isize>, ()))) -> Vec<(isize, isize)> {
+fn materialize_2d_lattice(r: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ()))) -> Vec<(isize, isize)> {
     let (vy, r) = r;
     let (vx, _) = r;
 
@@ -409,7 +410,7 @@ fn materialize_2d_lattice(r: (Option<(isize, isize)>, (Option<isize>, ()))) -> V
     if let Some(vy) = vy {
         r.push(vy);
     }
-    if let Some(vx) = vx {
+    if let Some(Tuple1(vx)) = vx {
         r.push((vx, 0));
     }
     r

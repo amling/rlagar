@@ -1,7 +1,12 @@
-use crate::tuple;
+use ars_ds::tuple::CTupleEnd;
+use ars_ds::tuple::Tuple1;
 
-use tuple::TupleEnd;
-use tuple::CTupleEnd;
+// TODO: move this IsTuple hack into macro in ars crate
+// is_tuple_trait!(IsTuple)
+pub trait IsTuple { }
+impl<A> IsTuple for Tuple1<A> { }
+impl<A, B> IsTuple for (A, B) { }
+impl<A, B, C> IsTuple for (A, B, C) { }
 
 pub trait ZModule: Eq + Clone {
     fn zero() -> Self;
@@ -34,7 +39,7 @@ impl ZModule for isize {
     }
 }
 
-impl<X: ZModule, Y: ZModule, T: CTupleEnd<F=X, B=Y> + Clone + Eq> ZModule for T {
+impl<X: ZModule, Y: ZModule, T: CTupleEnd<F=X, B=Y> + Clone + Eq + IsTuple> ZModule for T {
     fn zero() -> Self {
         T::join_tuple_end(X::zero(), Y::zero())
     }
@@ -112,7 +117,7 @@ impl Canonicalizes<()> for () {
     }
 }
 
-impl<S: LatticeCanonicalizable, T: ZModule + TupleEnd<isize, F=S>> LatticeCanonicalizable for T {
+impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize> + IsTuple> LatticeCanonicalizable for T {
     type Output = (Option<T>, S::Output);
 
     fn canonicalize(vs: Vec<T>) -> (Option<T>, S::Output) {
@@ -145,7 +150,7 @@ impl<S: LatticeCanonicalizable, T: ZModule + TupleEnd<isize, F=S>> LatticeCanoni
     }
 }
 
-impl<S: LatticeCanonicalizable, T: ZModule + TupleEnd<isize, F=S>> Canonicalizes<T> for (Option<T>, S::Output) {
+impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize>> Canonicalizes<T> for (Option<T>, S::Output) {
     fn canonicalize(&self, t: T) -> T {
         let (mut s, mut n) = T::split_tuple_end(t);
         if let Some(t) = &self.0 {
