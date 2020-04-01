@@ -9,33 +9,6 @@ impl<A> IsTuple for Tuple1<A> { }
 impl<A, B> IsTuple for (A, B) { }
 impl<A, B, C> IsTuple for (A, B, C) { }
 
-pub fn egcd<R: ZModule>(mut a: isize, mut b: isize, mut ra: R, mut rb: R) -> (isize, R, R) {
-    egcd_mut(&mut a, &mut b, &mut ra, &mut rb);
-    (b, ra, rb)
-}
-
-fn egcd_mut<R: ZModule>(a: &mut isize, b: &mut isize, ra: &mut R, rb: &mut R) {
-    if *a < 0 {
-        *a *= -1;
-        ra.mul(-1);
-    }
-
-    if *b < 0 {
-        *b *= -1;
-        rb.mul(-1);
-    }
-
-    while *a > 0 {
-        let q = *b / *a;
-
-        *b -= q * *a;
-        rb.addmul(-q, &ra);
-
-        std::mem::swap(a, b);
-        std::mem::swap(ra, rb);
-    }
-}
-
 pub trait Canonicalizes<S: ZModule + Clone> {
     fn canonicalize(&self, s: S) -> S;
 
@@ -77,7 +50,7 @@ impl<S: LatticeCanonicalizable + Eq, T: ZModule + CTupleEnd<F=S, B=isize> + IsTu
         for v in vs.iter_mut() {
             let (sv, nv) = v;
             let (sl, nl) = &mut l;
-            egcd_mut(nv, nl, sv, sl);
+            ars_aa::misc::egcd_mut(nv, nl, sv, sl);
         }
 
         let vs = vs.into_iter().map(|(s, n)| {

@@ -36,7 +36,7 @@ let t0 = std::time::Instant::now();
                 continue;
             }
 
-            let (d, _, (s, t)) = lattice::egcd(syx, mx, (1, 0), (0, 1));
+            let (d, _, (s, t)) = ars_aa::misc::egcd(syx, mx, (1, 0), (0, 1));
             // d = s * syx + t * mx
 
             // (mx, 0), (syx, my)
