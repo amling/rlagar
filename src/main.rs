@@ -227,7 +227,7 @@ let t0 = std::time::Instant::now();
                 }
             }
 
-            let (fl_vt, fl) = fl;
+            let (fl_vt, fl2) = fl;
             let fl_vt = fl_vt.unwrap();
 
             // now collect the projected lattice
@@ -235,7 +235,7 @@ let t0 = std::time::Instant::now();
             let pl = LatticeCanonicalizable::canonicalize(pl);
 
             // now what is the rank of the intersection with t = 0?
-            match materialize_2d_lattice(fl).len() {
+            match materialize_2d_lattice(fl2).len() {
                 0 => {
                     // rank zero: Oscillator or glider, probably discard since we don't expect
                     // any interesting results.  Could analyze as oscillator/glider to give
@@ -253,7 +253,7 @@ let t0 = std::time::Instant::now();
                             eprintln!("   {}: p{} oscillator", s, mt);
                         }
                         else {
-                            eprintln!("   {}: {} space ship", s, pretty_speed(fl, mt, stx, sty));
+                            eprintln!("   {}: {} space ship", s, pretty_speed(fl2, mt, stx, sty));
                         }
                     }
                 }
@@ -277,16 +277,15 @@ let t0 = std::time::Instant::now();
                                 }
                                 else {
                                     // not actual period when including a shift
-                                    eprintln!("   {}: {} shifting oscillator wick (true period {})", s, pretty_speed(fl, mt, stx, sty), period);
+                                    eprintln!("   {}: {} shifting oscillator wick (true period {})", s, pretty_speed(fl2, mt, stx, sty), period);
                                 }
                             }
                         }
                         2 => {
-                            let (stx, sty, mt) = fl_vt;
                             // TODO
-                            let pop = min_pop(lattice, masks, s, mt);
-                            let flp = materialize_2d_lattice(fl);
-                            eprintln!("   {:?}: {} space ship wick, spatial symmetry {:?}, min pop {}", result, pretty_speed(fl, mt, stx, sty), flp, pop);
+                            let (stx, sty, mt) = fl_vt;
+                            let canonical = ssw_canonical(&links, fl);
+                            eprintln!("   {:?}: {} space ship wick, canonical {:?}", result, pretty_speed(fl2, mt, stx, sty), canonical);
                         }
                         _ => {
                             panic!();
@@ -490,10 +489,52 @@ fn compute_masks(lattice: (isize, isize, isize)) -> Vec<Vec<u64>> {
     acc
 }
 
-fn min_pop(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, s0: u64, t: isize) -> usize {
-    let mut s = s0;
-    (0..t).map(|_| {
-        s = tick(lattice, masks, s);
-        s.count_ones() as usize
-    }).min().unwrap()
+fn ssw_canonical(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>, fl: (Option<(isize, isize, isize)>, (Option<(isize, isize)>, (Option<Tuple1<isize>>, ())))) -> (usize, isize, isize, String) {
+    let mut candidates = Vec::new();
+    for &p1 in links.keys() {
+        let connected = ars_graph::weighted::find_connected(&links, p1);
+        let cells: HashSet<_> = connected.into_iter().filter_map(|(p2, pd)| {
+            let pd = fl.canonicalize(pd);
+            if p1.2 != p2.2 {
+                return None;
+            }
+            assert_eq!(0, pd.2);
+            Some((p2.0 - p1.0 + pd.0, p2.1 - p1.1 + pd.1))
+        }).collect();
+        for &mx in &[-1, 1] {
+            for &my in &[-1, 1] {
+                for &swap in &[false, true] {
+                    let cells: HashSet<_> = cells.iter().map(|&(x, y)| {
+                        let x = x * mx;
+                        let y = y * my;
+                        match swap {
+                            true => (y, x),
+                            false => (x, y),
+                        }
+                    }).collect();
+
+                    let min_x = cells.iter().map(|&(x, _)| x).min().unwrap();
+                    let max_x = cells.iter().map(|&(x, _)| x).max().unwrap();
+                    let min_y = cells.iter().map(|&(_, y)| y).min().unwrap();
+                    let max_y = cells.iter().map(|&(_, y)| y).max().unwrap();
+
+                    let mut cells_str = String::new();
+                    for y in min_y..=max_y {
+                        for x in min_x..=max_x {
+                            cells_str.push(match cells.contains(&(x, y)) {
+                                true => '*',
+                                false => '.',
+                            });
+                        }
+                        if y != max_y {
+                            cells_str.push('/');
+                        }
+                    }
+
+                    candidates.push((cells.len(), max_y - min_y + 1, max_x - min_x + 1, cells_str));
+                }
+            }
+        }
+    }
+    candidates.into_iter().min().unwrap()
 }
