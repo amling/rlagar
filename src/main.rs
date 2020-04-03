@@ -38,7 +38,7 @@ let t0 = std::time::Instant::now();
                 continue;
             }
 
-            let (d, _, (s, t)) = ars_aa::misc::egcd(syx, mx, (1, 0), (0, 1));
+            let (d, _, (s, _)) = ars_aa::misc::egcd(syx, mx, (1, 0), (0, 1));
             // d = s * syx + t * mx
 
             // (mx, 0), (syx, my)
@@ -51,7 +51,7 @@ let t0 = std::time::Instant::now();
             // the rest...
             let t_h = d;
             // what syx would be if we transposed
-            let t_syx = s * t;
+            let t_syx = s * my;
             // grumble grumble stupid mod
             let t_syx = (Some(Tuple1(t_mx)), ()).canonicalize(Tuple1(t_syx)).0;
             // if smaller flipped...
