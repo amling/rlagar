@@ -489,6 +489,9 @@ fn compute_masks(lattice: (isize, isize, isize)) -> Vec<Vec<u64>> {
     acc
 }
 
+// This still isn't right because once we've fixed fl flipping and swapping will not necessarily
+// produce what it would have had the lattice been canonicalized that way.  Hopefully few enough
+// duplicates to not go crazy...
 fn ssw_canonical(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>, fl: (Option<(isize, isize, isize)>, (Option<(isize, isize)>, (Option<Tuple1<isize>>, ())))) -> (usize, isize, isize, String) {
     let mut candidates = Vec::new();
     for &p1 in links.keys() {
