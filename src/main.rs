@@ -193,16 +193,13 @@ let t0 = std::time::Instant::now();
 
                 let (fl_vt, fl) = fl;
                 let fl_vt = fl_vt.unwrap();
-                let fl = materialize_2d_lattice(fl);
 
                 // now collect the projected lattice
                 let pl: Vec<_> = ls.iter().map(|&(x, y, _)| (x, y)).collect();
                 let pl = LatticeCanonicalizable::canonicalize(pl);
 
-                let pl = materialize_2d_lattice(pl);
-
                 // now what is the rank of the intersection with t = 0?
-                match fl.len() {
+                match materialize_2d_lattice(fl).len() {
                     0 => {
                         // rank zero: Oscillator or glider, probably discard since we don't expect
                         // any interesting results.  Could analyze as oscillator/glider to give
@@ -217,10 +214,10 @@ let t0 = std::time::Instant::now();
                         else {
                             if stx == 0 && sty == 0 {
                                 assert_eq!(period, mt);
-                                eprintln!("   {}: oscillator, period {}", s, mt);
+                                eprintln!("   {}: p{} oscillator", s, mt);
                             }
                             else {
-                                eprintln!("   {}: space ship, shift ({}, {}), period {}", s, stx, sty, mt);
+                                eprintln!("   {}: {} space ship", s, pretty_speed(fl, mt, stx, sty));
                             }
                         }
                     }
@@ -231,7 +228,7 @@ let t0 = std::time::Instant::now();
                         // = 0) tells us stuff here.  If it is also one rank then we've got an
                         // oscillator wick and if it's two rank we have a (sideways) moving wick.
 
-                        match pl.len() {
+                        match materialize_2d_lattice(pl).len() {
                             1 => {
                                 let (stx, sty, mt) = fl_vt;
                                 if stx == 0 && sty == 0 && mt == 1 {
@@ -240,17 +237,18 @@ let t0 = std::time::Instant::now();
                                 else {
                                     if stx == 0 && sty == 0 {
                                         assert_eq!(period, mt);
-                                        eprintln!("   {}: oscillator wick, period {}", s, mt);
+                                        eprintln!("   {}: p{} oscillator wick", mt, s);
                                     }
                                     else {
                                         // not actual period when including a shift
-                                        eprintln!("   {}: shifting oscillator wick, shift ({}, {}), period {}, true period {}", s, stx, sty, mt, period);
+                                        eprintln!("   {}: {} shifting oscillator wick (true period {})", s, pretty_speed(fl, mt, stx, sty), period);
                                     }
                                 }
                             }
                             2 => {
+                                let (stx, sty, mt) = fl_vt;
                                 // TODO
-                                eprintln!("   {:?}: space ship wick", result);
+                                eprintln!("   {:?}: {} space ship wick", result, pretty_speed(fl, mt, stx, sty));
                             }
                             _ => {
                                 panic!();
@@ -413,4 +411,37 @@ fn materialize_2d_lattice(r: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ()
         r.push((vx, 0));
     }
     r
+}
+
+fn pretty_speed(geometry2: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ())), mt: isize, stx: isize, sty: isize) -> String {
+    // Sigh, not obvious how to make this less stupid, but it should be fine for how little it's
+    // used.
+    for d in 0..100 {
+        for x in 0..=d {
+            let y = d - x;
+            for &sx in &[-1, 1] {
+                for &sy in &[-1, 1] {
+                    if geometry2.canonicalize((sx * x, sy * y)) == (stx, sty) {
+                        let x = x.abs();
+                        let y = y.abs();
+
+                        let (x, y) = (x.max(y), x.min(y));
+
+                        if x == 0 {
+                            return "0".to_string();
+                        }
+                        if y == 0 {
+                            if x == 1 {
+                                return format!("c/{}", mt);
+                            }
+                            return format!("{}c/{}", x, mt);
+                        }
+                        return format!("({}, {})c/{}", x, y, mt);
+                    }
+                }
+            }
+        }
+    }
+
+    panic!();
 }
