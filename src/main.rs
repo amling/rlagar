@@ -235,7 +235,7 @@ let t0 = std::time::Instant::now();
             let pl = LatticeCanonicalizable::canonicalize(pl);
 
             // now what is the rank of the intersection with t = 0?
-            match materialize_2d_lattice(fl2).len() {
+            match fl2.materialize().len() {
                 0 => {
                     // rank zero: Oscillator or glider, probably discard since we don't expect
                     // any interesting results.  Could analyze as oscillator/glider to give
@@ -264,7 +264,7 @@ let t0 = std::time::Instant::now();
                     // = 0) tells us stuff here.  If it is also one rank then we've got an
                     // oscillator wick and if it's two rank we have a (sideways) moving wick.
 
-                    match materialize_2d_lattice(pl).len() {
+                    match pl.materialize().len() {
                         1 => {
                             let (stx, sty, mt) = fl_vt;
                             if stx == 0 && sty == 0 && mt == 1 {
@@ -405,20 +405,6 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
     }
 
     links
-}
-
-fn materialize_2d_lattice(r: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ()))) -> Vec<(isize, isize)> {
-    let (vy, r) = r;
-    let (vx, _) = r;
-
-    let mut r = Vec::new();
-    if let Some(vy) = vy {
-        r.push(vy);
-    }
-    if let Some(Tuple1(vx)) = vx {
-        r.push((vx, 0));
-    }
-    r
 }
 
 fn pretty_speed(geometry2: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ())), mt: isize, stx: isize, sty: isize) -> String {
