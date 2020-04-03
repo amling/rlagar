@@ -71,7 +71,6 @@ let t0 = std::time::Instant::now();
         let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
 
         let masks = compute_masks(lattice);
-eprintln!("Lattice {:?} worst masks {}", lattice, masks.iter().map(|masks| masks.len()).max().unwrap());
         let masks = &masks;
 
         let flags = Flags::new(1 << n);
