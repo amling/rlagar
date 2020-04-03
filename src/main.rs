@@ -304,38 +304,6 @@ fn search(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, flags: &Flags, 
 }
 
 fn tick(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
-    let r1 = old_tick(lattice, s0);
-    let r2 = new_tick(lattice, masks, s0);
-    assert_eq!(r1, r2);
-    r1
-}
-
-fn old_tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
-    let (mx, my, syx) = lattice;
-    let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
-    let mut s1 = 0;
-    for x in 0..mx {
-        for y in 0..my {
-            let idx = y * mx + x;
-            let mut s = 0;
-            for &(dx, dy) in &[(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)] {
-                let (x2, y2) = geometry2.canonicalize((x + dx, y + dy));
-                let idx2 = y2 * mx + x2;
-                s += ((s0 >> idx2) & 1);
-            }
-            let living = match ((s0 >> idx) & 1 == 1) {
-                true => (2 <= s && s <= 3),
-                false => (s == 3),
-            };
-            if living {
-                s1 |= (1 << idx);
-            }
-        }
-    }
-    s1
-}
-
-fn new_tick(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
     let (mx, my, _syx) = lattice;
     let mut s1 = 0;
     for idx in 0..(mx * my) {
