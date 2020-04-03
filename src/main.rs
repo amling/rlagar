@@ -18,9 +18,9 @@ use lattice::Canonicalizes;
 use lattice::LatticeCanonicalizable;
 
 fn main() {
-for n in 25..=25 {
+for n in 2..=20 {
 let t0 = std::time::Instant::now();
-    let threads = 8;
+    let threads = 1;
     let workunit_bits = 6.min(n);
 
     let mut lattices = Vec::new();
@@ -70,6 +70,9 @@ let t0 = std::time::Instant::now();
         let (mx, my, syx) = lattice;
         let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
 
+        let hld = compute_hld(lattice);
+        let hld = &hld;
+
         let flags = Flags::new(1 << n);
         let flags = &flags;
 
@@ -96,7 +99,7 @@ let t0 = std::time::Instant::now();
                             let suffix_bits = n - workunit_bits;
                             for suffix in 0..(1 << suffix_bits) {
                                 let s0 = (workunit << suffix_bits) | suffix;
-                                search(lattice, flags, s0, results);
+                                search(lattice, hld, flags, s0, results);
                             }
                         }
                     });
@@ -148,7 +151,7 @@ let t0 = std::time::Instant::now();
                     }
                 }
 
-                s1 = tick(lattice, s1);
+                s1 = tick(lattice, hld, s1);
             }
             panic!();
         });
@@ -178,7 +181,7 @@ let t0 = std::time::Instant::now();
                         links.entry((cx1, cy1, ct1)).or_insert_with(|| HashSet::new()).insert(((cx2, cy2, ct2), (rx, ry, rt)));
                     }
                 }
-                s1 = tick(lattice, s1);
+                s1 = tick(lattice, hld, s1);
             }
 
             // links is the directed graph of (x, y, t) with edges labelled with absolute shift
@@ -273,7 +276,7 @@ eprintln!("N {} took {:?}", n, t0.elapsed());
 }
 }
 
-fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
+fn search(lattice: (isize, isize, isize), hld: &Option<Vec<u64>>, flags: &Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
     let mut prev_vec = Vec::new();
     let mut prev_map = HashMap::new();
     let mut s = s0;
@@ -292,7 +295,7 @@ fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut 
         let t = prev_vec.len();
         prev_vec.push(s);
         prev_map.insert(s, t);
-        s = tick(lattice, s);
+        s = tick(lattice, hld, s);
     }
 
     for sp in prev_vec {
@@ -300,7 +303,19 @@ fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut 
     }
 }
 
-fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
+fn tick(lattice: (isize, isize, isize), hld: &Option<Vec<u64>>, s0: u64) -> u64 {
+    let r1 = old_tick(lattice, s0);
+    if let Some(hld) = hld {
+        let r2 = new_tick(lattice, hld, s0);
+        if r1 != r2 {
+            eprintln!("uh oh {:?}, {:?}, {} {} {}", lattice, hld, s0, r1, r2);
+            panic!();
+        }
+    }
+    r1
+}
+
+fn old_tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
     let (mx, my, syx) = lattice;
     let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
     let mut s1 = 0;
@@ -320,6 +335,27 @@ fn tick(lattice: (isize, isize, isize), s0: u64) -> u64 {
             if living {
                 s1 |= (1 << idx);
             }
+        }
+    }
+    s1
+}
+
+fn new_tick(lattice: (isize, isize, isize), hld: &Vec<u64>, s0: u64) -> u64 {
+    let (mx, my, _syx) = lattice;
+    let mut s1 = 0;
+    for idx in 0..(mx * my) {
+        let mut v = s0 & hld[idx as usize];
+        let mut s = 0;
+        while v > 0 {
+            v &= (v - 1);
+            s += 1;
+        }
+        let living = match ((s0 >> idx) & 1 == 1) {
+            true => (2 <= s && s <= 3),
+            false => (s == 3),
+        };
+        if living {
+            s1 |= (1 << idx);
         }
     }
     s1
@@ -443,4 +479,32 @@ fn pretty_speed(geometry2: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ()))
     }
 
     panic!();
+}
+
+fn compute_hld(lattice: (isize, isize, isize)) -> Option<Vec<u64>> {
+    let (mx, my, syx) = lattice;
+    let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
+
+    let mut acc = Vec::new();
+    for idx in 0..(mx * my) {
+        let x = idx % mx;
+        let y = idx / mx;
+        let mut mask = 0;
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                if (dx, dy) == (0, 0) {
+                    continue;
+                }
+                let (x2, y2) = geometry2.canonicalize((x + dx, y + dy));
+                let idx2 = y2 * mx + x2;
+                if mask & (1 << idx2) != 0 {
+                    // duplicate neighbors, mask trick won't work
+                    return None;
+                }
+                mask |= (1 << idx2);
+            }
+        }
+        acc.push(mask);
+    }
+    Some(acc)
 }
