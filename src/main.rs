@@ -18,9 +18,9 @@ use lattice::Canonicalizes;
 use lattice::LatticeCanonicalizable;
 
 fn main() {
-for n in 2..=20 {
+for n in 25..=25 {
 let t0 = std::time::Instant::now();
-    let threads = 1;
+    let threads = 8;
     let workunit_bits = 6.min(n);
 
     let mut lattices = Vec::new();
