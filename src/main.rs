@@ -14,7 +14,7 @@ mod flags;
 mod lattice;
 
 use flags::Flags;
-use lattice::Canonicalizes;
+use lattice::CanonicalLattice;
 use lattice::LatticeCanonicalizable;
 
 fn main() {

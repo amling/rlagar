@@ -3,7 +3,7 @@ use ars_ds::tuple::CTupleEnd;
 
 is_tuple_trait!(IsTuple);
 
-pub trait Canonicalizes<S: ZModule + Clone> {
+pub trait CanonicalLattice<S: ZModule + Clone> {
     fn canonicalize(&self, s: S) -> S;
 
     fn canonicalize_delta(&self, s: S) -> (S, S) {
@@ -16,7 +16,7 @@ pub trait Canonicalizes<S: ZModule + Clone> {
 }
 
 pub trait LatticeCanonicalizable: ZModule + Clone + Sized {
-    type Output: Canonicalizes<Self>;
+    type Output: CanonicalLattice<Self>;
 
     fn canonicalize(vs: Vec<Self>) -> Self::Output;
 }
@@ -28,7 +28,7 @@ impl LatticeCanonicalizable for () {
     }
 }
 
-impl Canonicalizes<()> for () {
+impl CanonicalLattice<()> for () {
     fn canonicalize(&self, _: ()) -> () {
     }
 }
@@ -66,7 +66,7 @@ impl<S: LatticeCanonicalizable + Eq, T: ZModule + CTupleEnd<F=S, B=isize> + IsTu
     }
 }
 
-impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize> + Clone> Canonicalizes<T> for (Option<T>, S::Output) {
+impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize> + Clone> CanonicalLattice<T> for (Option<T>, S::Output) {
     fn canonicalize(&self, t: T) -> T {
         let (mut s, mut n) = T::split_tuple_end(t);
         if let Some(t) = &self.0 {
