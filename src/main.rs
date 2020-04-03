@@ -237,7 +237,7 @@ let t0 = std::time::Instant::now();
                                 else {
                                     if stx == 0 && sty == 0 {
                                         assert_eq!(period, mt);
-                                        eprintln!("   {}: p{} oscillator wick", mt, s);
+                                        eprintln!("   {}: p{} oscillator wick", s, mt);
                                     }
                                     else {
                                         // not actual period when including a shift
