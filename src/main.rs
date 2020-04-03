@@ -307,11 +307,14 @@ fn tick(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
     let mut s1 = 0;
     for idx in 0..(mx * my) {
         let mut s = 0;
-        for mask in masks[idx as usize].iter() {
+        's: for mask in masks[idx as usize].iter() {
             let mut v = s0 & mask;
             while v > 0 {
                 v &= (v - 1);
                 s += 1;
+                if s >= 4 {
+                    break 's;
+                }
             }
         }
         let living = match ((s0 >> idx) & 1 == 1) {
