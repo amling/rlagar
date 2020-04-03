@@ -18,7 +18,7 @@ use lattice::Canonicalizes;
 use lattice::LatticeCanonicalizable;
 
 fn main() {
-for n in 2..=33 {
+for n in 25..=25 {
 let t0 = std::time::Instant::now();
     let threads = 8;
     let workunit_bits = 6.min(n);
@@ -267,6 +267,7 @@ let t0 = std::time::Instant::now();
                 };
             }
         }
+break;
     }
 eprintln!("N {} took {:?}", n, t0.elapsed());
 }
