@@ -13,6 +13,14 @@ pub trait CanonicalLattice<S: ZModule + Clone> {
         sd.addmul(-1, &s);
         (s, sd)
     }
+
+    fn materialize_mut(&self, acc: impl FnMut(S));
+
+    fn materialize(&self) -> Vec<S> {
+        let mut acc = Vec::new();
+        self.materialize_mut(|s| acc.push(s));
+        acc
+    }
 }
 
 pub trait LatticeCanonicalizable: ZModule + Clone + Sized {
@@ -30,6 +38,9 @@ impl LatticeCanonicalizable for () {
 
 impl CanonicalLattice<()> for () {
     fn canonicalize(&self, _: ()) -> () {
+    }
+
+    fn materialize_mut(&self, _: impl FnMut(())) {
     }
 }
 
@@ -84,5 +95,14 @@ impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize> + Clone> Ca
         }
         s = self.1.canonicalize(s);
         T::join_tuple_end(s, n)
+    }
+
+    fn materialize_mut(&self, mut acc: impl FnMut(T)) {
+        if let Some(t) = &self.0 {
+            acc(t.clone());
+        }
+        self.1.materialize_mut(|s| {
+            acc(T::join_tuple_end(s, 0));
+        });
     }
 }
