@@ -74,7 +74,7 @@ let t0 = std::time::Instant::now();
         let flags = &flags;
 
         let workunits: Vec<_> = (0..(1 << workunit_bits)).collect();
-        let mut results: Vec<_> = workunits.iter().map(|_| Vec::new()).collect();
+        let mut results: Vec<_> = workunits.iter().map(|_| HashSet::new()).collect();
 
         {
             let q = SegQueue::new();
@@ -273,7 +273,7 @@ eprintln!("N {} took {:?}", n, t0.elapsed());
 }
 }
 
-fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut Vec<(u64, isize)>) {
+fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
     let mut prev_vec = Vec::new();
     let mut prev_map = HashMap::new();
     let mut s = s0;
@@ -285,7 +285,7 @@ fn search(lattice: (isize, isize, isize), flags: &Flags, s0: u64, results: &mut 
 
         if let Some(&idx) = prev_map.get(&s) {
             let &sc = (&prev_vec[idx..]).iter().min().unwrap();
-            results.push((sc, (prev_vec.len() - idx) as isize));
+            results.insert((sc, (prev_vec.len() - idx) as isize));
             break;
         }
 
