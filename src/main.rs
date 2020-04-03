@@ -49,7 +49,7 @@ let t0 = std::time::Instant::now();
             // the order stepping vertically, what mx would be if we transposed
             let t_mx = my * mx / d;
             // the rest...
-            let ht = d;
+            let t_h = d;
             // what syx would be if we transposed
             let t_syx = s * t;
             // grumble grumble stupid mod
@@ -57,7 +57,7 @@ let t0 = std::time::Instant::now();
             // if smaller flipped...
             let t_syx = t_syx.min(t_mx - t_syx);
 
-            if (-t_mx, ht, t_syx) < (-mx, ht, syx) {
+            if (-t_mx, t_h, t_syx) < (-mx, my, syx) {
                 continue;
             }
 
