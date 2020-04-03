@@ -251,7 +251,9 @@ let t0 = std::time::Instant::now();
                             2 => {
                                 let (stx, sty, mt) = fl_vt;
                                 // TODO
-                                eprintln!("   {:?}: {} space ship wick", result, pretty_speed(fl, mt, stx, sty));
+                                let pop = min_pop(lattice, masks, s, mt);
+                                let flp = materialize_2d_lattice(fl);
+                                eprintln!("   {:?}: {} space ship wick, spatial symmetry {:?}, min pop {}", result, pretty_speed(fl, mt, stx, sty), flp, pop);
                             }
                             _ => {
                                 panic!();
@@ -474,4 +476,12 @@ fn compute_masks(lattice: (isize, isize, isize)) -> Vec<Vec<u64>> {
         acc.push(masks);
     }
     acc
+}
+
+fn min_pop(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, s0: u64, t: isize) -> usize {
+    let mut s = s0;
+    (0..t).map(|_| {
+        s = tick(lattice, masks, s);
+        s.count_ones() as usize
+    }).min().unwrap()
 }
