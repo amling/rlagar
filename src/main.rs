@@ -158,7 +158,7 @@ let t0 = std::time::Instant::now();
 
         let results: BTreeSet<_> = results.collect();
         eprintln!("Lattice {:?} => {} results", lattice, results.len());
-        for result in results {
+        'result: for result in results {
             //eprintln!("   {:?}", result);
 
             let (s, period, mt, stx, sty) = result;
@@ -186,90 +186,122 @@ let t0 = std::time::Instant::now();
 
             // links is the directed graph of (x, y, t) with edges labelled with absolute shift
 
-            if let Some(ls) = compute_lattice_links(&links) {
-                // These "lattice links" tell us the generators for the lattice that connects the
-                // same cell in each fundamntal period (in the 3D lattice of space and time).
-                // These are given in absolute x/y coordinates, not wrap counts.
+            // min not necessary for algo in general but makes debugging less insane
+            let &p1 = links.keys().filter(|p| p.2 == 0).min().unwrap();
 
-                let fl = ls.clone();
-                let fl = LatticeCanonicalizable::canonicalize(fl);
+            // These "lattice links" tell us the generators for the lattice that connects the same
+            // cell in each fundamental period (in the 3D lattice of space and time).  These are
+            // given in absolute x/y coordinates, not wrap counts.
+            let ls = ars_graph::weighted::find_cycle_generators(&links, p1);
+            let fl = ls.clone();
+            let fl = LatticeCanonicalizable::canonicalize(fl);
 
-                let (fl_vt, fl) = fl;
-                let fl_vt = fl_vt.unwrap();
+            // The values here tell us a lattice distance by which p1 is connected to the key.
+            // Again, given in absolute coordinates.
+            let connected = ars_graph::weighted::find_connected(&links, p1);
 
-                // now collect the projected lattice
-                let pl: Vec<_> = ls.iter().map(|&(x, y, _)| (x, y)).collect();
-                let pl = LatticeCanonicalizable::canonicalize(pl);
+            for &p2 in links.keys() {
+                if p2.2 != 0 {
+                    continue;
+                }
 
-                // now what is the rank of the intersection with t = 0?
-                match materialize_2d_lattice(fl).len() {
-                    0 => {
-                        // rank zero: Oscillator or glider, probably discard since we don't expect
-                        // any interesting results.  Could analyze as oscillator/glider to give
-                        // period and shift.
+                // All our cells (in t = 0) should have been part of same connected component or we
+                // discard since we should find connected components separately.
+                match connected.get(&p2) {
+                    Some(&pd) => {
+                        let pd = fl.canonicalize(pd);
+                        // It's okay if we don't connect at (0, 0, 0), we just need to connect at
+                        // some point in space at time 0.
+                        if pd.2 != 0 {
+                            // This is pretty amazing.  This happens when e.g.  you have two copies
+                            // of the same wick that appear to replace each other.  Each cell in
+                            // space is connected, but not all back at t = 0 so things actually can
+                            // be split into pieces.
+                            continue 'result;
+                        }
+                    }
+                    None => {
+                        // not connected to this cell at all!
+                        continue 'result;
+                    }
+                }
+            }
 
-                        let (stx, sty, mt) = fl_vt;
-                        if mt == 1 {
-                            assert_eq!(0, stx);
-                            assert_eq!(0, sty);
-                            eprintln!("   {}: still life", s);
+            let (fl_vt, fl) = fl;
+            let fl_vt = fl_vt.unwrap();
+
+            // now collect the projected lattice
+            let pl: Vec<_> = ls.iter().map(|&(x, y, _)| (x, y)).collect();
+            let pl = LatticeCanonicalizable::canonicalize(pl);
+
+            // now what is the rank of the intersection with t = 0?
+            match materialize_2d_lattice(fl).len() {
+                0 => {
+                    // rank zero: Oscillator or glider, probably discard since we don't expect
+                    // any interesting results.  Could analyze as oscillator/glider to give
+                    // period and shift.
+
+                    let (stx, sty, mt) = fl_vt;
+                    if mt == 1 {
+                        assert_eq!(0, stx);
+                        assert_eq!(0, sty);
+                        eprintln!("   {}: still life", s);
+                    }
+                    else {
+                        if stx == 0 && sty == 0 {
+                            assert_eq!(period, mt);
+                            eprintln!("   {}: p{} oscillator", s, mt);
                         }
                         else {
-                            if stx == 0 && sty == 0 {
-                                assert_eq!(period, mt);
-                                eprintln!("   {}: p{} oscillator", s, mt);
-                            }
-                            else {
-                                eprintln!("   {}: {} space ship", s, pretty_speed(fl, mt, stx, sty));
-                            }
+                            eprintln!("   {}: {} space ship", s, pretty_speed(fl, mt, stx, sty));
                         }
                     }
-                    1 => {
-                        // rank one: Wick of some sort.  Presumably all interesting although
-                        // overpop-only connection may mean a lot of boring stuff here.  Projection
-                        // of connection lattice into (x, y) plane (rather than intersection with t
-                        // = 0) tells us stuff here.  If it is also one rank then we've got an
-                        // oscillator wick and if it's two rank we have a (sideways) moving wick.
+                }
+                1 => {
+                    // rank one: Wick of some sort.  Presumably all interesting although
+                    // overpop-only connection may mean a lot of boring stuff here.  Projection
+                    // of connection lattice into (x, y) plane (rather than intersection with t
+                    // = 0) tells us stuff here.  If it is also one rank then we've got an
+                    // oscillator wick and if it's two rank we have a (sideways) moving wick.
 
-                        match materialize_2d_lattice(pl).len() {
-                            1 => {
-                                let (stx, sty, mt) = fl_vt;
-                                if stx == 0 && sty == 0 && mt == 1 {
-                                    eprintln!("   {}: still life wick", s);
+                    match materialize_2d_lattice(pl).len() {
+                        1 => {
+                            let (stx, sty, mt) = fl_vt;
+                            if stx == 0 && sty == 0 && mt == 1 {
+                                eprintln!("   {}: still life wick", s);
+                            }
+                            else {
+                                if stx == 0 && sty == 0 {
+                                    assert_eq!(period, mt);
+                                    eprintln!("   {}: p{} oscillator wick", s, mt);
                                 }
                                 else {
-                                    if stx == 0 && sty == 0 {
-                                        assert_eq!(period, mt);
-                                        eprintln!("   {}: p{} oscillator wick", s, mt);
-                                    }
-                                    else {
-                                        // not actual period when including a shift
-                                        eprintln!("   {}: {} shifting oscillator wick (true period {})", s, pretty_speed(fl, mt, stx, sty), period);
-                                    }
+                                    // not actual period when including a shift
+                                    eprintln!("   {}: {} shifting oscillator wick (true period {})", s, pretty_speed(fl, mt, stx, sty), period);
                                 }
                             }
-                            2 => {
-                                let (stx, sty, mt) = fl_vt;
-                                // TODO
-                                let pop = min_pop(lattice, masks, s, mt);
-                                let flp = materialize_2d_lattice(fl);
-                                eprintln!("   {:?}: {} space ship wick, spatial symmetry {:?}, min pop {}", result, pretty_speed(fl, mt, stx, sty), flp, pop);
-                            }
-                            _ => {
-                                panic!();
-                            }
-                        };
-                    }
-                    2 => {
-                        // rank two: Real agar.
+                        }
+                        2 => {
+                            let (stx, sty, mt) = fl_vt;
+                            // TODO
+                            let pop = min_pop(lattice, masks, s, mt);
+                            let flp = materialize_2d_lattice(fl);
+                            eprintln!("   {:?}: {} space ship wick, spatial symmetry {:?}, min pop {}", result, pretty_speed(fl, mt, stx, sty), flp, pop);
+                        }
+                        _ => {
+                            panic!();
+                        }
+                    };
+                }
+                2 => {
+                    // rank two: Real agar.
 
-                        // TODO
-                        eprintln!("   {:?}: rank two...", result);
-                    }
-                    _ => {
-                        panic!();
-                    }
-                };
+                    // TODO
+                    eprintln!("   {:?}: rank two...", result);
+                }
+                _ => {
+                    panic!();
+                }
             }
         }
     }
@@ -374,26 +406,6 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
     }
 
     links
-}
-
-fn compute_lattice_links(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>) -> Option<Vec<(isize, isize, isize)>> {
-    let &p1 = links.keys().next().unwrap();
-
-    let connected = ars_graph::weighted::find_connected(links, p1);
-
-    for &p in links.keys() {
-        if p.2 != 0 {
-            continue;
-        }
-
-        if let None = connected.get(&p) {
-            // All our cells (in t = 0) should have been part of same connected component or we
-            // discard since we should find connected components separately.
-            return None;
-        }
-    }
-
-    Some(ars_graph::weighted::find_cycle_generators(links, p1))
 }
 
 fn materialize_2d_lattice(r: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ()))) -> Vec<(isize, isize)> {
