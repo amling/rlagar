@@ -475,9 +475,6 @@ fn compute_masks(lattice: (isize, isize, isize)) -> Vec<Vec<u64>> {
     acc
 }
 
-// This still isn't right because once we've fixed fl flipping and swapping will not necessarily
-// produce what it would have had the lattice been canonicalized that way.  Hopefully few enough
-// duplicates to not go crazy...
 fn ssw_canonical(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>, fl: (Option<(isize, isize, isize)>, (Option<(isize, isize)>, (Option<Tuple1<isize>>, ())))) -> (usize, isize, isize, String) {
     let mut candidates = Vec::new();
     for &p1 in links.keys() {
@@ -493,14 +490,23 @@ fn ssw_canonical(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, 
         for &mx in &[-1, 1] {
             for &my in &[-1, 1] {
                 for &swap in &[false, true] {
-                    let cells: HashSet<_> = cells.iter().map(|&(x, y)| {
+                    let mangle = |(x, y)| {
                         let x = x * mx;
                         let y = y * my;
                         match swap {
                             true => (y, x),
                             false => (x, y),
                         }
-                    }).collect();
+                    };
+
+                    // Rebuild fl2 in new position so once we canonicalize cells they'll produce
+                    // what they would have if we had started in that orientation.
+                    let (_, fl2) = fl;
+                    let fl2 = fl2.materialize();
+                    let fl2 = fl2.into_iter().map(mangle).collect();
+                    let fl2 = LatticeCanonicalizable::canonicalize(fl2);
+
+                    let cells: HashSet<_> = cells.iter().map(|&p| fl2.canonicalize(mangle(p))).collect();
 
                     let min_x = cells.iter().map(|&(x, _)| x).min().unwrap();
                     let max_x = cells.iter().map(|&(x, _)| x).max().unwrap();
