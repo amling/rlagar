@@ -18,7 +18,7 @@ use lattice::CanonicalLattice;
 use lattice::LatticeCanonicalizable;
 
 fn main() {
-for n in 2..=33 {
+for n in 34..=38 {
 let t0 = std::time::Instant::now();
     let threads = 8;
     let workunit_bits = 6.min(n);
