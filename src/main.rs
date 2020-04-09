@@ -311,15 +311,15 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx:
             if mt == 1 {
                 assert_eq!(0, stx);
                 assert_eq!(0, sty);
-                println!("   {:?}: still life", result);
+                println!("{:?}: still life", result);
             }
             else {
                 if stx == 0 && sty == 0 {
                     assert_eq!(period, mt);
-                    println!("   {:?}: p{} oscillator", result, mt);
+                    println!("{:?}: p{} oscillator", result, mt);
                 }
                 else {
-                    println!("   {:?}: {} space ship", result, pretty_speed(fl2, mt, stx, sty));
+                    println!("{:?}: {} space ship", result, pretty_speed(fl2, mt, stx, sty));
                 }
             }
         }
@@ -334,16 +334,16 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx:
                 1 => {
                     let (stx, sty, mt) = fl_vt;
                     if stx == 0 && sty == 0 && mt == 1 {
-                        println!("   {:?}: still life wick", result);
+                        println!("{:?}: still life wick", result);
                     }
                     else {
                         if stx == 0 && sty == 0 {
                             assert_eq!(period, mt);
-                            println!("   {:?}: p{} oscillator wick", result, mt);
+                            println!("{:?}: p{} oscillator wick", result, mt);
                         }
                         else {
                             // not actual period when including a shift
-                            println!("   {:?}: {} shifting oscillator wick (true period {})", result, pretty_speed(fl2, mt, stx, sty), period);
+                            println!("{:?}: {} shifting oscillator wick (true period {})", result, pretty_speed(fl2, mt, stx, sty), period);
                         }
                     }
                 }
@@ -351,7 +351,7 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx:
                     // TODO
                     let (stx, sty, mt) = fl_vt;
                     let canonical = ssw_canonical(&links, fl);
-                    println!("   {:?}: {} space ship wick, canonical {:?}", result, pretty_speed(fl2, mt, stx, sty), canonical);
+                    println!("{:?}: {} space ship wick, canonical {:?}", result, pretty_speed(fl2, mt, stx, sty), canonical);
                 }
                 _ => {
                     panic!();
@@ -362,7 +362,7 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx:
             // rank two: Real agar.
 
             // TODO
-            println!("   {:?}: rank two...", result);
+            println!("{:?}: rank two...", result);
         }
         _ => {
             panic!();
