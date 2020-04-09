@@ -362,7 +362,9 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx:
             // rank two: Real agar.
 
             // TODO
-            println!("{:?}: rank two...", result);
+            let (stx, sty, mt) = fl_vt;
+            let canonical = ssw_canonical(&links, fl);
+            println!("{:?}: {} agar, canonical {:?}", result, pretty_speed(fl2, mt, stx, sty), canonical);
         }
         _ => {
             panic!();
