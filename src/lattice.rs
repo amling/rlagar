@@ -1,5 +1,5 @@
 use ars_aa::zmodule::ZModule;
-use ars_ds::tuple::CTupleEnd;
+use ars_ds::tuple::TupleEnd;
 
 is_tuple_trait!(IsTuple);
 
@@ -44,7 +44,7 @@ impl CanonicalLattice<()> for () {
     }
 }
 
-impl<S: LatticeCanonicalizable + Eq, T: ZModule + CTupleEnd<F=S, B=isize> + IsTuple + Clone> LatticeCanonicalizable for T {
+impl<S: LatticeCanonicalizable + Eq, T: ZModule + TupleEnd<F=S, B=isize> + IsTuple + Clone> LatticeCanonicalizable for T {
     type Output = (Option<T>, S::Output);
 
     fn canonicalize(vs: Vec<T>) -> (Option<T>, S::Output) {
@@ -77,7 +77,7 @@ impl<S: LatticeCanonicalizable + Eq, T: ZModule + CTupleEnd<F=S, B=isize> + IsTu
     }
 }
 
-impl<S: LatticeCanonicalizable, T: ZModule + CTupleEnd<F=S, B=isize> + Clone> CanonicalLattice<T> for (Option<T>, S::Output) {
+impl<S: LatticeCanonicalizable, T: ZModule + TupleEnd<F=S, B=isize> + Clone> CanonicalLattice<T> for (Option<T>, S::Output) {
     fn canonicalize(&self, t: T) -> T {
         let (mut s, mut n) = T::split_tuple_end(t);
         if let Some(t) = &self.0 {

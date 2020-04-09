@@ -3,7 +3,6 @@
 #[macro_use]
 extern crate ars_ds;
 
-use ars_ds::tuple::Tuple1;
 use crossbeam::queue::PopError;
 use crossbeam::queue::SegQueue;
 use std::collections::BTreeSet;
@@ -100,7 +99,7 @@ fn genl(n: isize) {
             // what syx would be if we transposed
             let t_syx = s * my;
             // grumble grumble stupid mod
-            let t_syx = (Some(Tuple1(t_mx)), ()).canonicalize(Tuple1(t_syx)).0;
+            let t_syx = (Some((t_mx,)), ()).canonicalize((t_syx,)).0;
             // if smaller flipped...
             let t_syx = t_syx.min(t_mx - t_syx);
 
@@ -122,7 +121,7 @@ fn gens(mx: isize, my: isize, syx: isize) {
     let threads = 8;
     let workunit_bits = 6.min(n);
 
-    let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
+    let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
 
     let masks = compute_masks(lattice);
     let masks = &masks;
@@ -228,7 +227,7 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx:
 
     let result = (lattice, s, period, mt, stx, sty);
 
-    let geometry3 = (Some((stx, sty, mt)), (Some((syx, my)), (Some(Tuple1(mx)), ())));
+    let geometry3 = (Some((stx, sty, mt)), (Some((syx, my)), (Some((mx,)), ())));
 
     let mut links = HashMap::new();
     let mut s1 = s;
@@ -420,7 +419,7 @@ fn tick(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
 
 fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize))>> {
     let (mx, my, syx) = lattice;
-    let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
+    let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
     let mut nss = HashMap::new();
     let mut links = HashMap::new();
     let mut add_link = |p1, p2, l: (isize, isize)| {
@@ -471,7 +470,7 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
     links
 }
 
-fn pretty_speed(geometry2: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ())), mt: isize, stx: isize, sty: isize) -> String {
+fn pretty_speed(geometry2: (Option<(isize, isize)>, (Option<(isize,)>, ())), mt: isize, stx: isize, sty: isize) -> String {
     // Sigh, not obvious how to make this less stupid, but it should be fine for how little it's
     // used.
     for d in 0..100 {
@@ -506,7 +505,7 @@ fn pretty_speed(geometry2: (Option<(isize, isize)>, (Option<Tuple1<isize>>, ()))
 
 fn compute_masks(lattice: (isize, isize, isize)) -> Vec<Vec<u64>> {
     let (mx, my, syx) = lattice;
-    let geometry2 = (Some((syx, my)), (Some(Tuple1(mx)), ()));
+    let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
 
     let mut acc = Vec::new();
     for idx in 0..(mx * my) {
@@ -539,7 +538,7 @@ fn compute_masks(lattice: (isize, isize, isize)) -> Vec<Vec<u64>> {
     acc
 }
 
-fn ssw_canonical(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>, fl: (Option<(isize, isize, isize)>, (Option<(isize, isize)>, (Option<Tuple1<isize>>, ())))) -> (usize, isize, isize, String) {
+fn ssw_canonical(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>, fl: (Option<(isize, isize, isize)>, (Option<(isize, isize)>, (Option<(isize,)>, ())))) -> (usize, isize, isize, String) {
     let mut candidates = Vec::new();
     for &p1 in links.keys() {
         let connected = ars_graph::weighted::find_connected(&links, p1);
