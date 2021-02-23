@@ -64,7 +64,9 @@ fn main() {
             let s = parts[3].parse().unwrap();
             let period = parts[4].parse().unwrap();
 
-            anas(mx, my, syx, s, period);
+            for result in anas(mx, my, syx, s, period) {
+                print_res(result);
+            }
         }
         return;
     }
@@ -222,7 +224,7 @@ fn gens(mx: isize, my: isize, syx: isize) {
     }
 }
 
-fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize) {
+fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize) -> Vec<(Geometry3, Vec<Vec2>)> {
     let mut gen0 = HashSet::new();
     for x in 0..mx {
         for y in 0..my {
@@ -232,10 +234,10 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize) {
             }
         }
     }
-    ana2(mx, my, syx, period, gen0);
+    ana2(mx, my, syx, period, gen0)
 }
 
-fn ana2(mx: isize, my: isize, syx: isize, ttp: isize, gen0: HashSet<Vec2>) {
+fn ana2(mx: isize, my: isize, syx: isize, ttp: isize, gen0: HashSet<Vec2>) -> Vec<(Geometry3, Vec<Vec2>)> {
     let geometry3 = (Some((0, 0, ttp)), (Some((syx, my)), (Some((mx,)), ())));
 
     let mut links = HashMap::new();
@@ -263,6 +265,7 @@ fn ana2(mx: isize, my: isize, syx: isize, ttp: isize, gen0: HashSet<Vec2>) {
     // links is the directed graph of (x, y, t) with edges labelled with absolute shift
 
     let mut checked = HashSet::new();
+    let mut ret = Vec::new();
     for &p1 in links.keys() {
         if p1.2 != 0 {
             continue;
@@ -294,11 +297,13 @@ fn ana2(mx: isize, my: isize, syx: isize, ttp: isize, gen0: HashSet<Vec2>) {
         // mx/my/syx)
         let cells = connected.iter().map(|(&(x2, y2, t2), &(dx, dy, dt))| lat.canonicalize((x2 + dx, y2 + dy, t2 + dt))).collect();
 
-        ana2b(lat, cells);
+        ana2b(&mut ret, lat, cells);
     }
+
+    ret
 }
 
-fn ana2b(mut lat: Geometry3, mut cells: HashSet<Vec3>) {
+fn ana2b(ret: &mut Vec<(Geometry3, Vec<Vec2>)>, mut lat: Geometry3, mut cells: HashSet<Vec3>) {
     'top: loop {
         let &(x1, y1, t1) = cells.iter().next().unwrap();
         for &(x2, y2, t2) in &cells {
@@ -365,8 +370,12 @@ fn ana2b(mut lat: Geometry3, mut cells: HashSet<Vec3>) {
         }
     }
     let (_, lat, cells) = tups.into_iter().min().unwrap();
-    let result = (lat, cells);
 
+    ret.push((lat, cells));
+}
+
+fn print_res((lat, cells): (Geometry3, Vec<Vec2>)) {
+    let result = (lat, cells);
     let (stx, sty, mt) = lat.0.unwrap();
     let lat2d = lat.1;
 
