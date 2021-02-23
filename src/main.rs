@@ -86,7 +86,7 @@ fn main() {
 
 fn debug_log(msg: impl AsRef<str>) {
     let msg = msg.as_ref();
-    println!("{} - {}", Local::now().format("%Y%m%d %H:%M:%S"), msg);
+    eprintln!("{} - {}", Local::now().format("%Y%m%d %H:%M:%S"), msg);
 }
 
 fn debug_time<T>(label: impl AsRef<str>, cb: impl FnOnce() -> T) -> T {
@@ -143,109 +143,108 @@ fn genl(n: isize) {
 
 fn gens(mx: isize, my: isize, syx: isize) {
     let lattice = (mx, my, syx);
-    let n = mx * my;
+    debug_time(format!("lattice {:?}", lattice), || {
+        let n = mx * my;
 
-    let t0 = std::time::Instant::now();
+        let threads = 8;
+        let workunit_bits = 6.min(n);
 
-    let threads = 8;
-    let workunit_bits = 6.min(n);
+        let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
 
-    let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
+        let masks = compute_masks(lattice);
+        let masks = &masks;
 
-    let masks = compute_masks(lattice);
-    let masks = &masks;
+        let flags = Flags::new(1 << n);
+        let flags = &flags;
 
-    let flags = Flags::new(1 << n);
-    let flags = &flags;
+        let workunits: Vec<_> = (0..(1 << workunit_bits)).collect();
+        let mut results: Vec<_> = workunits.iter().map(|_| HashSet::new()).collect();
 
-    let workunits: Vec<_> = (0..(1 << workunit_bits)).collect();
-    let mut results: Vec<_> = workunits.iter().map(|_| HashSet::new()).collect();
+        {
+            let q = SegQueue::new();
+            for tuple in workunits.into_iter().zip(results.iter_mut()) {
+                q.push(tuple);
+            }
 
-    {
-        let q = SegQueue::new();
-        for tuple in workunits.into_iter().zip(results.iter_mut()) {
-            q.push(tuple);
+            crossbeam::scope(|sc| {
+                for _ in 0..threads {
+                    sc.spawn(|_| {
+                        loop {
+                            let (workunit, results) = match q.pop() {
+                                Result::Ok(tuple) => tuple,
+                                Result::Err(PopError) => {
+                                    return;
+                                }
+                            };
+
+                            let suffix_bits = n - workunit_bits;
+                            for suffix in 0..(1 << suffix_bits) {
+                                let s0 = (workunit << suffix_bits) | suffix;
+                                search(lattice, masks, flags, s0, results);
+                            }
+                        }
+                    });
+                }
+            }).unwrap();
         }
 
-        crossbeam::scope(|sc| {
-            for _ in 0..threads {
-                sc.spawn(|_| {
-                    loop {
-                        let (workunit, results) = match q.pop() {
-                            Result::Ok(tuple) => tuple,
-                            Result::Err(PopError) => {
-                                return;
-                            }
-                        };
+        let results = results.into_iter().flatten();
 
-                        let suffix_bits = n - workunit_bits;
-                        for suffix in 0..(1 << suffix_bits) {
-                            let s0 = (workunit << suffix_bits) | suffix;
-                            search(lattice, masks, flags, s0, results);
+        let results = results.filter_map(|(s, period)| {
+            let mut s1 = s;
+            for t in 0.. {
+                for dx in 0..mx {
+                    for dy in 0..my {
+                        if dx == 0 && dy == 0 && t == 0 {
+                            continue;
                         }
-                    }
-                });
-            }
-        }).unwrap();
-    }
 
-    let results = results.into_iter().flatten();
+                        let mut s2 = 0;
+                        for x in 0..mx {
+                            for y in 0..my {
+                                let idx = y * mx + x;
 
-    let results = results.filter_map(|(s, period)| {
-        let mut s1 = s;
-        for t in 0.. {
-            for dx in 0..mx {
-                for dy in 0..my {
-                    if dx == 0 && dy == 0 && t == 0 {
-                        continue;
-                    }
+                                let (x2, y2) = geometry2.canonicalize((x + dx, y + dy));
+                                let idx2 = y2 * mx + x2;
 
-                    let mut s2 = 0;
-                    for x in 0..mx {
-                        for y in 0..my {
-                            let idx = y * mx + x;
-
-                            let (x2, y2) = geometry2.canonicalize((x + dx, y + dy));
-                            let idx2 = y2 * mx + x2;
-
-                            if (s1 >> idx) & 1 == 1 {
-                                s2 |= (1 << idx2);
+                                if (s1 >> idx) & 1 == 1 {
+                                    s2 |= (1 << idx2);
+                                }
                             }
                         }
-                    }
 
-                    if s2 < s {
-                        // found lower value somewhere else, drop
-                        //eprintln!("Drop lattice {:?} result {}, shift ({}, {}) at t {}", lattice, s, dx, dy, t);
-                        return None;
-                    }
-
-                    if s2 == s {
-                        if t == 0 {
-                            // found extra spatial symmetry, this can be found in smaller
-                            // geometry
-                            //eprintln!("Drop lattice {:?} result {} shift ({}, {})", lattice, s, dx, dy);
+                        if s2 < s {
+                            // found lower value somewhere else, drop
+                            //eprintln!("Drop lattice {:?} result {}, shift ({}, {}) at t {}", lattice, s, dx, dy, t);
                             return None;
                         }
-                        let (dx, dy) = geometry2.canonicalize((-dx, -dy));
-                        return Some((s, period, t, dx, dy));
+
+                        if s2 == s {
+                            if t == 0 {
+                                // found extra spatial symmetry, this can be found in smaller
+                                // geometry
+                                //eprintln!("Drop lattice {:?} result {} shift ({}, {})", lattice, s, dx, dy);
+                                return None;
+                            }
+                            let (dx, dy) = geometry2.canonicalize((-dx, -dy));
+                            return Some((s, period, t, dx, dy));
+                        }
                     }
                 }
+
+                s1 = tick(lattice, masks, s1);
             }
+            panic!();
+        });
 
-            s1 = tick(lattice, masks, s1);
+        let results: BTreeSet<_> = results.collect();
+
+        debug_log(format!("Lattice {:?} => {} results", lattice, results.len()));
+
+        for (s, period, t, dx, dy) in results {
+            println!("{} {} {} {} {} {} {} {}", mx, my, syx, s, period, t, dx, dy);
         }
-        panic!();
     });
-
-    let results: BTreeSet<_> = results.collect();
-
-    eprintln!("Lattice {:?} took {:?}", lattice, t0.elapsed());
-    eprintln!("Lattice {:?} => {} results", lattice, results.len());
-
-    for (s, period, t, dx, dy) in results {
-        println!("{} {} {} {} {} {} {} {}", mx, my, syx, s, period, t, dx, dy);
-    }
 }
 
 fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize) -> Vec<(Geometry3, Vec<Vec2>)> {
