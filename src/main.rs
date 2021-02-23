@@ -17,6 +17,12 @@ use flags::Flags;
 use lattice::CanonicalLattice;
 use lattice::LatticeCanonicalizable;
 
+type Vec3 = (isize, isize, isize);
+type Vec2 = (isize, isize);
+type Vec1 = (isize,);
+type Geometry2 = (Option<Vec2>, (Option<Vec1>, ()));
+type Geometry3 = (Option<Vec3>, Geometry2);
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let cmd = args.next().unwrap();
@@ -371,7 +377,7 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx:
     }
 }
 
-fn search(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, flags: &Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
+fn search(lattice: Vec3, masks: &Vec<Vec<u64>>, flags: &Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
     let mut prev_vec = Vec::new();
     let mut prev_map = HashMap::new();
     let mut s = s0;
@@ -398,7 +404,7 @@ fn search(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, flags: &Flags, 
     }
 }
 
-fn tick(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
+fn tick(lattice: Vec3, masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
     let (mx, my, _syx) = lattice;
     let mut s1 = 0;
     for idx in 0..(mx * my) {
@@ -417,12 +423,12 @@ fn tick(lattice: (isize, isize, isize), masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
     s1
 }
 
-fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize))>> {
+fn compute_links(lattice: Vec3, s0: u64) -> HashMap<Vec3, HashSet<(Vec3, Vec2)>> {
     let (mx, my, syx) = lattice;
     let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
     let mut nss = HashMap::new();
     let mut links = HashMap::new();
-    let mut add_link = |p1, p2, l: (isize, isize)| {
+    let mut add_link = |p1, p2, l: Vec2| {
         let (lx, ly) = l;
         links.entry(p1).or_insert_with(|| HashSet::new()).insert((p2, (lx, ly)));
         links.entry(p2).or_insert_with(|| HashSet::new()).insert((p1, (-lx, -ly)));
@@ -470,7 +476,7 @@ fn compute_links(lattice: (isize, isize, isize), s0: u64) -> HashMap<(isize, isi
     links
 }
 
-fn pretty_speed(geometry2: (Option<(isize, isize)>, (Option<(isize,)>, ())), mt: isize, stx: isize, sty: isize) -> String {
+fn pretty_speed(geometry2: Geometry2, mt: isize, stx: isize, sty: isize) -> String {
     // Sigh, not obvious how to make this less stupid, but it should be fine for how little it's
     // used.
     for d in 0..100 {
@@ -503,7 +509,7 @@ fn pretty_speed(geometry2: (Option<(isize, isize)>, (Option<(isize,)>, ())), mt:
     panic!();
 }
 
-fn compute_masks(lattice: (isize, isize, isize)) -> Vec<Vec<u64>> {
+fn compute_masks(lattice: Vec3) -> Vec<Vec<u64>> {
     let (mx, my, syx) = lattice;
     let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
 
@@ -538,7 +544,7 @@ fn compute_masks(lattice: (isize, isize, isize)) -> Vec<Vec<u64>> {
     acc
 }
 
-fn ssw_canonical(links: &HashMap<(isize, isize, isize), HashSet<((isize, isize, isize), (isize, isize, isize))>>, fl: (Option<(isize, isize, isize)>, (Option<(isize, isize)>, (Option<(isize,)>, ())))) -> (usize, isize, isize, String) {
+fn ssw_canonical(links: &HashMap<Vec3, HashSet<(Vec3, Vec3)>>, fl: Geometry3) -> (usize, isize, isize, String) {
     let mut candidates = Vec::new();
     for &p1 in links.keys() {
         let connected = ars_graph::weighted::find_connected(&links, p1);
