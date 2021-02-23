@@ -725,6 +725,9 @@ fn main_rand1(lattices: &[Vec<Vec3>]) -> Vec<(Geometry3, Vec<Vec2>)> {
     let mut t = 0isize;
     let mut already = HashMap::new();
     loop {
+        if t >= 200 {
+            return vec![];
+        }
         if let Some(t0) = already.get(&gen0) {
             return ana2(mx, my, syx, t - t0, gen0.iter().cloned().collect());
         }
