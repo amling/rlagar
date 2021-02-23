@@ -676,7 +676,7 @@ fn main_rand() {
                         let stop = &stop;
                         sc.spawn(move |_| {
                             while !stop.load(Ordering::Relaxed) {
-                                for result in main_rand1(&lattices) {
+                                for result in main_rand1(stop, lattices) {
                                     if already.contains(&result) {
                                         continue;
                                     }
@@ -735,7 +735,7 @@ fn compute_step(mx: isize, my: isize, syx: isize, gen0: &HashSet<Vec2>) -> HashS
     gen1
 }
 
-fn main_rand1(lattices: &[Vec<Vec3>]) -> Vec<(Geometry3, Vec<Vec2>)> {
+fn main_rand1(stop: &AtomicBool, lattices: &[Vec<Vec3>]) -> Vec<(Geometry3, Vec<Vec2>)> {
     let lats = lattices.choose(&mut rand::thread_rng()).unwrap();
     let &(mx, my, syx) = lats.choose(&mut rand::thread_rng()).unwrap();
 
@@ -752,10 +752,13 @@ fn main_rand1(lattices: &[Vec<Vec3>]) -> Vec<(Geometry3, Vec<Vec2>)> {
     let mut t = 0isize;
     let mut already = HashMap::new();
     loop {
-        if t >= 200 {
+        if stop.load(Ordering::Relaxed) {
             return vec![];
         }
         if let Some(t0) = already.get(&gen0) {
+            if t - t0 > 200 {
+                return vec![];
+            }
             return ana2(mx, my, syx, t - t0, gen0.iter().cloned().collect());
         }
         already.insert(gen0.clone(), t);
