@@ -472,7 +472,17 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
         2 => {
             // rank two: Real agar.
 
-            println!("{:?}: {} agar", result, pretty_speed(stx, sty, mt));
+            if (stx, sty, mt) == (0, 0, 1) {
+                println!("{:?}: still life agar", result);
+            }
+            else if (stx, sty) == (0, 0) {
+                println!("{:?}: p{} agar", result, mt);
+            }
+            else {
+                let bw_lat = LatticeCanonicalizable::canonicalize(lat.materialize().into_iter().map(|(x, y, t)| (t, x, y)).collect());
+                let (ttp,) = ((bw_lat.1).1).0.unwrap();
+                println!("{:?}: jump {} p{} agar", result, pretty_speed(stx, sty, mt), ttp);
+            }
         }
         _ => {
             panic!();
