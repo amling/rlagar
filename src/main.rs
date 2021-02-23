@@ -63,11 +63,8 @@ fn main() {
             let syx = parts[2].parse().unwrap();
             let s = parts[3].parse().unwrap();
             let period = parts[4].parse().unwrap();
-            let t = parts[5].parse().unwrap();
-            let dx = parts[6].parse().unwrap();
-            let dy = parts[7].parse().unwrap();
 
-            anas(mx, my, syx, s, period, t, dx, dy);
+            anas(mx, my, syx, s, period);
         }
         return;
     }
@@ -225,20 +222,27 @@ fn gens(mx: isize, my: isize, syx: isize) {
     }
 }
 
-fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx: isize, sty: isize) {
-    let lattice = (mx, my, syx);
+fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize) {
+    let mut gen0 = HashSet::new();
+    for x in 0..mx {
+        for y in 0..my {
+            let idx = y * mx + x;
+            if (s >> idx) & 1 == 1 {
+                gen0.insert((x, y));
+            }
+        }
+    }
+    ana2(mx, my, syx, period, gen0);
+}
 
-    let masks = compute_masks(lattice);
-    let masks = &masks;
-
-    let result = (lattice, s, period, mt, stx, sty);
-
-    let geometry3 = (Some((stx, sty, mt)), (Some((syx, my)), (Some((mx,)), ())));
+fn ana2(mx: isize, my: isize, syx: isize, ttp: isize, gen0: HashSet<Vec2>) {
+    let geometry3 = (Some((0, 0, ttp)), (Some((syx, my)), (Some((mx,)), ())));
 
     let mut links = HashMap::new();
-    let mut s1 = s;
-    for t in 0..mt {
-        for ((x1, y1, t1), links2) in compute_links(lattice, s1).into_iter() {
+    let mut gen1 = gen0.clone();
+    for t in 0..ttp {
+        let (links1, gen2) = compute_step(mx, my, syx, &gen1);
+        for ((x1, y1, t1), links2) in links1.into_iter() {
             let t1 = t + t1;
             let (cx1, cy1, ct1) = geometry3.canonicalize((x1, y1, t1));
             for ((x2, y2, t2), (lx, ly)) in links2.into_iter() {
@@ -252,67 +256,127 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx:
                 links.entry((cx1, cy1, ct1)).or_insert_with(|| HashSet::new()).insert(((cx2, cy2, ct2), (rx, ry, rt)));
             }
         }
-        s1 = tick(lattice, masks, s1);
+        gen1 = gen2
     }
+    assert!(gen0 == gen1);
 
     // links is the directed graph of (x, y, t) with edges labelled with absolute shift
 
-    // min not necessary for algo in general but makes debugging less insane
-    let &p1 = links.keys().filter(|p| p.2 == 0).min().unwrap();
-
-    // These "lattice links" tell us the generators for the lattice that connects the same
-    // cell in each fundamental period (in the 3D lattice of space and time).  These are
-    // given in absolute x/y coordinates, not wrap counts.
-    let ls = ars_graph::weighted::find_cycle_generators(&links, p1);
-    let fl = ls.clone();
-    let fl = LatticeCanonicalizable::canonicalize(fl);
-
-    // The values here tell us a lattice distance by which p1 is connected to the key.
-    // Again, given in absolute coordinates.
-    let connected = ars_graph::weighted::find_connected(&links, p1);
-
-    for &p2 in links.keys() {
-        if p2.2 != 0 {
+    let mut checked = HashSet::new();
+    for &p1 in links.keys() {
+        if p1.2 != 0 {
             continue;
         }
 
-        // All our cells (in t = 0) should have been part of same connected component or we
-        // discard since we should find connected components separately.
-        match connected.get(&p2) {
-            Some(&pd) => {
-                let pd = fl.canonicalize(pd);
-                // It's okay if we don't connect at (0, 0, 0), we just need to connect at
-                // some point in space at time 0.
-                if pd.2 != 0 {
-                    // This is pretty amazing.  This happens when e.g.  you have two copies
-                    // of the same wick that appear to replace each other.  Each cell in
-                    // space is connected, but not all back at t = 0 so things actually can
-                    // be split into pieces.
-                    return;
-                }
+        if checked.contains(&p1) {
+            continue;
+        }
+
+        // These "lattice links" tell us the generators for the lattice that connects the same cell
+        // in each tile (in the 3D lattice of space and time).  These are given in absolute
+        // coordinates, not wrap counts.
+        let lat = ars_graph::weighted::find_cycle_generators(&links, p1);
+        let lat = LatticeCanonicalizable::canonicalize(lat);
+
+        // The values here tell us a lattice distance by which p1 is connected to the key.  Again,
+        // given in absolute coordinates.
+        let connected = ars_graph::weighted::find_connected(&links, p1);
+
+        // Mark these as handled so we don't revisit.
+        for &p2 in connected.keys() {
+            if p2.2 != 0 {
+                continue;
             }
-            None => {
-                // not connected to this cell at all!
-                return;
+            checked.insert(p2);
+        }
+
+        // Collect cells in their positions in the bigger lattice (dictated by ls, not by
+        // mx/my/syx)
+        let cells = connected.iter().map(|(&(x2, y2, t2), &(dx, dy, dt))| lat.canonicalize((x2 + dx, y2 + dy, t2 + dt))).collect();
+
+        ana2b(lat, cells);
+    }
+}
+
+fn ana2b(mut lat: Geometry3, mut cells: HashSet<Vec3>) {
+    'top: loop {
+        let &(x1, y1, t1) = cells.iter().next().unwrap();
+        for &(x2, y2, t2) in &cells {
+            if (x1, y1, t1) == (x2, y2, t2) {
+                continue;
+            }
+            let dx = x2 - x1;
+            let dy = y2 - y1;
+            let dt = t2 - t1;
+            let cells2 = cells.iter().map(|&(x, y, t)| lat.canonicalize((x + dx, y + dy, t + dt))).collect();
+            if cells == cells2 {
+                let mut lat2 = lat.materialize();
+                lat2.push((dx, dy, dt));
+
+                lat = LatticeCanonicalizable::canonicalize(lat2);
+                cells = cells.into_iter().map(|p| lat.canonicalize(p)).collect();
+
+                continue 'top;
+            }
+        }
+
+        break;
+    }
+
+    let mut tups = Vec::new();
+    let mut by_t = HashMap::new();
+    for &(x0, y0, t0) in cells.iter() {
+        by_t.entry(t0).or_insert_with(|| HashSet::new()).insert((x0, y0));
+    }
+    let min_pop = by_t.iter().map(|(_, cells)| cells.len()).min().unwrap();
+    for cells in by_t.values() {
+        if cells.len() != min_pop {
+            continue;
+        }
+        for &(x0, y0) in cells {
+            for &flip_x in &[false, true] {
+                for &flip_y in &[false, true] {
+                    for &swap_xy in &[false, true] {
+                        let mangle = |(mut x, mut y): Vec2| {
+                            if flip_x {
+                                x = -x;
+                            }
+                            if flip_y {
+                                y = -y;
+                            }
+                            if swap_xy {
+                                core::mem::swap(&mut x, &mut y);
+                            }
+                            (x, y)
+                        };
+
+                        let lat1 = LatticeCanonicalizable::canonicalize(lat.materialize().into_iter().map(|(x, y, t)| {
+                            let (x, y) = mangle((x, y));
+                            (x, y, t)
+                        }).collect());
+                        let lat1_2d = lat1.1;
+                        let mut cells1: Vec<Vec2> = cells.iter().map(|&(x, y)| lat1_2d.canonicalize(mangle((x - x0, y - y0)))).collect();
+                        cells1.sort();
+                        let (stx, sty, _) = lat1.0.unwrap();
+                        tups.push((stx.abs() + sty.abs(), lat1, cells1));
+                    }
+                }
             }
         }
     }
+    let (_, lat, cells) = tups.into_iter().min().unwrap();
+    let result = (lat, cells);
 
-    let (fl_vt, fl2) = fl;
-    let fl_vt = fl_vt.unwrap();
-
-    // now collect the projected lattice
-    let pl: Vec<_> = ls.iter().map(|&(x, y, _)| (x, y)).collect();
-    let pl = LatticeCanonicalizable::canonicalize(pl);
+    let (stx, sty, mt) = lat.0.unwrap();
+    let lat2d = lat.1;
 
     // now what is the rank of the intersection with t = 0?
-    match fl2.materialize().len() {
+    match lat2d.materialize().len() {
         0 => {
             // rank zero: Oscillator or glider, probably discard since we don't expect
             // any interesting results.  Could analyze as oscillator/glider to give
             // period and shift.
 
-            let (stx, sty, mt) = fl_vt;
             if mt == 1 {
                 assert_eq!(0, stx);
                 assert_eq!(0, sty);
@@ -320,56 +384,44 @@ fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize, mt: isize, stx:
             }
             else {
                 if stx == 0 && sty == 0 {
-                    assert_eq!(period, mt);
                     println!("{:?}: p{} oscillator", result, mt);
                 }
                 else {
-                    println!("{:?}: {} space ship", result, pretty_speed(fl2, mt, stx, sty));
+                    println!("{:?}: {} space ship", result, pretty_speed(stx, sty, mt));
                 }
             }
         }
         1 => {
-            // rank one: Wick of some sort.  Presumably all interesting although
-            // overpop-only connection may mean a lot of boring stuff here.  Projection
-            // of connection lattice into (x, y) plane (rather than intersection with t
-            // = 0) tells us stuff here.  If it is also one rank then we've got an
-            // oscillator wick and if it's two rank we have a (sideways) moving wick.
+            // rank one: Wick of some sort.  Presumably all interesting although overpop-only
+            // connection may mean a lot of boring stuff here.
 
-            match pl.materialize().len() {
-                1 => {
-                    let (stx, sty, mt) = fl_vt;
-                    if stx == 0 && sty == 0 && mt == 1 {
+            // Redo canonicalization with t innermost to try to figure out what's going on...
+            let bw_lat = LatticeCanonicalizable::canonicalize(lat.materialize().into_iter().map(|(x, y, t)| (t, x, y)).collect());
+            match ((bw_lat.1).1).0 {
+                Some((ttp,)) => {
+                    // We have a stationary period: wick.
+
+                    if (stx, sty, mt) == (0, 0, 1) {
+                        // Didn't really need to analyze bw_lat for this...
                         println!("{:?}: still life wick", result);
                     }
-                    else {
-                        if stx == 0 && sty == 0 {
-                            assert_eq!(period, mt);
-                            println!("{:?}: p{} oscillator wick", result, mt);
-                        }
-                        else {
-                            // not actual period when including a shift
-                            println!("{:?}: {} shifting oscillator wick (true period {})", result, pretty_speed(fl2, mt, stx, sty), period);
-                        }
+                    else if (stx, sty, mt) == (0, 0, ttp) {
+                        println!("{:?}: p{} oscillator wick", result, mt);
                     }
-                }
-                2 => {
-                    // TODO
-                    let (stx, sty, mt) = fl_vt;
-                    let canonical = ssw_canonical(&links, fl);
-                    println!("{:?}: {} space ship wick, canonical {:?}", result, pretty_speed(fl2, mt, stx, sty), canonical);
-                }
-                _ => {
-                    panic!();
-                }
-            };
+                    else {
+                        println!("{:?}: {} jump p{} oscillator wick", result, pretty_speed(stx, sty, mt), ttp);
+                    }
+                },
+                None => {
+                    // No stationary period: wave.
+                    println!("{:?}: {} wave", result, pretty_speed(stx, sty, mt));
+                },
+            }
         }
         2 => {
             // rank two: Real agar.
 
-            // TODO
-            let (stx, sty, mt) = fl_vt;
-            let canonical = ssw_canonical(&links, fl);
-            println!("{:?}: {} agar, canonical {:?}", result, pretty_speed(fl2, mt, stx, sty), canonical);
+            println!("{:?}: {} agar", result, pretty_speed(stx, sty, mt));
         }
         _ => {
             panic!();
@@ -423,8 +475,7 @@ fn tick(lattice: Vec3, masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
     s1
 }
 
-fn compute_links(lattice: Vec3, s0: u64) -> HashMap<Vec3, HashSet<(Vec3, Vec2)>> {
-    let (mx, my, syx) = lattice;
+fn compute_step(mx: isize, my: isize, syx: isize, gen0: &HashSet<Vec2>) -> (HashMap<Vec3, HashSet<(Vec3, Vec2)>>, HashSet<Vec2>) {
     let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
     let mut nss = HashMap::new();
     let mut links = HashMap::new();
@@ -433,25 +484,20 @@ fn compute_links(lattice: Vec3, s0: u64) -> HashMap<Vec3, HashSet<(Vec3, Vec2)>>
         links.entry(p1).or_insert_with(|| HashSet::new()).insert((p2, (lx, ly)));
         links.entry(p2).or_insert_with(|| HashSet::new()).insert((p1, (-lx, -ly)));
     };
-    for x in 0..mx {
-        for y in 0..my {
-            let idx = y * mx + x;
-            if (s0 >> idx) & 1 == 1 {
-                for dx in -1..=1 {
-                    for dy in -1..=1 {
-                        let x2 = x + dx;
-                        let y2 = y + dy;
-                        let (cx2, cy2) = geometry2.canonicalize((x2, y2));
-                        nss.entry((cx2, cy2)).or_insert_with(|| Vec::new()).push(((x, y), (cx2 - x2, cy2 - y2)));
-                    }
-                }
+    for &(x, y) in gen0 {
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                let x2 = x + dx;
+                let y2 = y + dy;
+                let (cx2, cy2) = geometry2.canonicalize((x2, y2));
+                nss.entry((cx2, cy2)).or_insert_with(|| Vec::new()).push(((x, y), (cx2 - x2, cy2 - y2)));
             }
         }
     }
+    let mut gen1 = HashSet::new();
     for ((x, y), ns) in nss.into_iter() {
-        let idx = y * mx + x;
         let ct = ns.len();
-        let living_curr = ((s0 >> idx) & 1 == 1);
+        let living_curr = gen0.contains(&(x, y));
 
         // If we're alive or we're dead and overpopulated then link up the whole neighborhood.
         if living_curr || ct >= 3 {
@@ -470,43 +516,37 @@ fn compute_links(lattice: Vec3, s0: u64) -> HashMap<Vec3, HashSet<(Vec3, Vec2)>>
             for &((x1, y1), (lx1, ly1)) in &ns {
                 add_link((x, y, 1), (x1, y1, 0), (lx1, ly1));
             }
+            gen1.insert((x, y));
         }
     }
 
-    links
+    (links, gen1)
 }
 
-fn pretty_speed(geometry2: Geometry2, mt: isize, stx: isize, sty: isize) -> String {
-    // Sigh, not obvious how to make this less stupid, but it should be fine for how little it's
-    // used.
-    for d in 0..100 {
-        for x in 0..=d {
-            let y = d - x;
-            for &sx in &[-1, 1] {
-                for &sy in &[-1, 1] {
-                    if geometry2.canonicalize((sx * x, sy * y)) == (stx, sty) {
-                        let x = x.abs();
-                        let y = y.abs();
+fn pretty_speed(x: isize, y: isize, mt: isize) -> String {
+    let x = x.abs();
+    let y = y.abs();
 
-                        let (x, y) = (x.max(y), x.min(y));
+    let (x, y) = (x.max(y), x.min(y));
 
-                        if x == 0 {
-                            return "0".to_string();
-                        }
-                        if y == 0 {
-                            if x == 1 {
-                                return format!("c/{}", mt);
-                            }
-                            return format!("{}c/{}", x, mt);
-                        }
-                        return format!("({}, {})c/{}", x, y, mt);
-                    }
-                }
-            }
+    let mut ret;
+    if y == 0 {
+        if x == 1 {
+            ret = format!("c");
+        }
+        else {
+            ret = format!("{}c", x);
         }
     }
+    else {
+        ret = format!("({}, {})c", x, y);
+    }
 
-    panic!();
+    if mt != 1 {
+        ret = format!("{}/{}", ret, mt);
+    }
+
+    return ret;
 }
 
 fn compute_masks(lattice: Vec3) -> Vec<Vec<u64>> {
@@ -542,63 +582,4 @@ fn compute_masks(lattice: Vec3) -> Vec<Vec<u64>> {
         acc.push(masks);
     }
     acc
-}
-
-fn ssw_canonical(links: &HashMap<Vec3, HashSet<(Vec3, Vec3)>>, fl: Geometry3) -> (usize, isize, isize, String) {
-    let mut candidates = Vec::new();
-    for &p1 in links.keys() {
-        let connected = ars_graph::weighted::find_connected(&links, p1);
-        let cells: HashSet<_> = connected.into_iter().filter_map(|(p2, pd)| {
-            let pd = fl.canonicalize(pd);
-            if p1.2 != p2.2 {
-                return None;
-            }
-            assert_eq!(0, pd.2);
-            Some((p2.0 - p1.0 + pd.0, p2.1 - p1.1 + pd.1))
-        }).collect();
-        for &mx in &[-1, 1] {
-            for &my in &[-1, 1] {
-                for &swap in &[false, true] {
-                    let mangle = |(x, y)| {
-                        let x = x * mx;
-                        let y = y * my;
-                        match swap {
-                            true => (y, x),
-                            false => (x, y),
-                        }
-                    };
-
-                    // Rebuild fl2 in new position so once we canonicalize cells they'll produce
-                    // what they would have if we had started in that orientation.
-                    let (_, fl2) = fl;
-                    let fl2 = fl2.materialize();
-                    let fl2 = fl2.into_iter().map(mangle).collect();
-                    let fl2 = LatticeCanonicalizable::canonicalize(fl2);
-
-                    let cells: HashSet<_> = cells.iter().map(|&p| fl2.canonicalize(mangle(p))).collect();
-
-                    let min_x = cells.iter().map(|&(x, _)| x).min().unwrap();
-                    let max_x = cells.iter().map(|&(x, _)| x).max().unwrap();
-                    let min_y = cells.iter().map(|&(_, y)| y).min().unwrap();
-                    let max_y = cells.iter().map(|&(_, y)| y).max().unwrap();
-
-                    let mut cells_str = String::new();
-                    for y in min_y..=max_y {
-                        for x in min_x..=max_x {
-                            cells_str.push(match cells.contains(&(x, y)) {
-                                true => '*',
-                                false => '.',
-                            });
-                        }
-                        if y != max_y {
-                            cells_str.push('/');
-                        }
-                    }
-
-                    candidates.push((cells.len(), max_y - min_y + 1, max_x - min_x + 1, cells_str));
-                }
-            }
-        }
-    }
-    candidates.into_iter().min().unwrap()
 }
