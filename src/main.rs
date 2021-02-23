@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate ars_ds;
 
+use chrono::Local;
 use crossbeam::queue::PopError;
 use crossbeam::queue::SegQueue;
 use rand::Rng;
@@ -81,6 +82,20 @@ fn main() {
     }
 
     panic!("Unknown cmd {:?}", cmd);
+}
+
+fn debug_log(msg: impl AsRef<str>) {
+    let msg = msg.as_ref();
+    println!("{} - {}", Local::now().format("%Y%m%d %H:%M:%S"), msg);
+}
+
+fn debug_time<T>(label: impl AsRef<str>, cb: impl FnOnce() -> T) -> T {
+    let label = label.as_ref();
+    let t0 = std::time::Instant::now();
+    debug_log(format!("Starting {}...", label));
+    let ret = cb();
+    debug_log(format!("Finished {}: {:?}", label, t0.elapsed()));
+    return ret;
 }
 
 fn genl(n: isize) {
@@ -639,42 +654,44 @@ fn main_rand() {
     let lattices: Vec<_> = lattices.into_iter().map(|(_, lats)| lats).collect();
 
     loop {
-        let mut results: Vec<_> = (0..threads).map(|_| Vec::new()).collect();
-        let stop = AtomicBool::new(false);
+        debug_time("round", || {
+            let mut results: Vec<_> = (0..threads).map(|_| Vec::new()).collect();
+            let stop = AtomicBool::new(false);
 
-        {
-            crossbeam::scope(|sc| {
-                for results in results.iter_mut() {
-                    let already = &already;
-                    let lattices = &lattices;
-                    let stop = &stop;
-                    sc.spawn(move |_| {
-                        while !stop.load(Ordering::Relaxed) {
-                            for result in main_rand1(&lattices) {
-                                if already.contains(&result) {
-                                    continue;
+            {
+                crossbeam::scope(|sc| {
+                    for results in results.iter_mut() {
+                        let already = &already;
+                        let lattices = &lattices;
+                        let stop = &stop;
+                        sc.spawn(move |_| {
+                            while !stop.load(Ordering::Relaxed) {
+                                for result in main_rand1(&lattices) {
+                                    if already.contains(&result) {
+                                        continue;
+                                    }
+                                    results.push(result);
                                 }
-                                results.push(result);
                             }
-                        }
-                    });
-                }
+                        });
+                    }
 
-                std::thread::sleep(Duration::from_millis(sleep_ms));
+                    std::thread::sleep(Duration::from_millis(sleep_ms));
 
-                stop.store(true, Ordering::Relaxed);
-            }).unwrap();
-        }
-
-        for results in results.into_iter() {
-            for result in results.into_iter() {
-                if already.contains(&result) {
-                    continue
-                }
-                print_res(&result);
-                already.insert(result);
+                    stop.store(true, Ordering::Relaxed);
+                }).unwrap();
             }
-        }
+
+            for results in results.into_iter() {
+                for result in results.into_iter() {
+                    if already.contains(&result) {
+                        continue
+                    }
+                    print_res(&result);
+                    already.insert(result);
+                }
+            }
+        });
     }
 }
 

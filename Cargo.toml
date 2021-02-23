@@ -5,6 +5,7 @@ authors = ["Keith Amling <me@amling2.org>"]
 edition = "2018"
 
 [dependencies]
+chrono = "=0.4.11"
 crossbeam = "=0.7.3"
 rand = "=0.6.1"
 ars_aa = { path = "ars/aa" }
