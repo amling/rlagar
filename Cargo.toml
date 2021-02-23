@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 crossbeam = "=0.7.3"
+rand = "=0.6.1"
 ars_aa = { path = "ars/aa" }
 ars_ds = { path = "ars/ds" }
 ars_graph = { path = "ars/graph" }

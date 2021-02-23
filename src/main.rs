@@ -5,10 +5,15 @@ extern crate ars_ds;
 
 use crossbeam::queue::PopError;
 use crossbeam::queue::SegQueue;
+use rand::Rng;
+use rand::seq::SliceRandom;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::BufRead;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 mod flags;
 mod lattice;
@@ -65,10 +70,14 @@ fn main() {
             let period = parts[4].parse().unwrap();
 
             for result in anas(mx, my, syx, s, period) {
-                print_res(result);
+                print_res(&result);
             }
         }
         return;
+    }
+
+    if cmd == "rand" {
+        return main_rand();
     }
 
     panic!("Unknown cmd {:?}", cmd);
@@ -243,7 +252,7 @@ fn ana2(mx: isize, my: isize, syx: isize, ttp: isize, gen0: HashSet<Vec2>) -> Ve
     let mut links = HashMap::new();
     let mut gen1 = gen0.clone();
     for t in 0..ttp {
-        let (links1, gen2) = compute_step(mx, my, syx, &gen1);
+        let (links1, gen2) = compute_step_links(mx, my, syx, &gen1);
         for ((x1, y1, t1), links2) in links1.into_iter() {
             let t1 = t + t1;
             let (cx1, cy1, ct1) = geometry3.canonicalize((x1, y1, t1));
@@ -374,8 +383,8 @@ fn ana2b(ret: &mut Vec<(Geometry3, Vec<Vec2>)>, mut lat: Geometry3, mut cells: H
     ret.push((lat, cells));
 }
 
-fn print_res((lat, cells): (Geometry3, Vec<Vec2>)) {
-    let result = (lat, cells);
+fn print_res(result: &(Geometry3, Vec<Vec2>)) {
+    let &(lat, _) = result;
     let (stx, sty, mt) = lat.0.unwrap();
     let lat2d = lat.1;
 
@@ -502,7 +511,7 @@ fn tick(lattice: Vec3, masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
     s1
 }
 
-fn compute_step(mx: isize, my: isize, syx: isize, gen0: &HashSet<Vec2>) -> (HashMap<Vec3, HashSet<(Vec3, Vec2)>>, HashSet<Vec2>) {
+fn compute_step_links(mx: isize, my: isize, syx: isize, gen0: &HashSet<Vec2>) -> (HashMap<Vec3, HashSet<(Vec3, Vec2)>>, HashSet<Vec2>) {
     let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
     let mut nss = HashMap::new();
     let mut links = HashMap::new();
@@ -609,4 +618,123 @@ fn compute_masks(lattice: Vec3) -> Vec<Vec<u64>> {
         acc.push(masks);
     }
     acc
+}
+
+fn main_rand() {
+    let threads = 8;
+    let sleep_ms = 5000;
+    let max_lattice = 1000;
+
+    let mut already = HashSet::new();
+    let mut lattices = HashMap::new();
+    for mx in 1..=max_lattice {
+        for my in 1..=(max_lattice / mx) {
+            let sz = mx * my;
+            let lats = lattices.entry(sz).or_insert_with(|| Vec::new());
+            for syx in 0..=(mx / 2) {
+                lats.push((mx, my, syx));
+            }
+        }
+    }
+    let lattices: Vec<_> = lattices.into_iter().map(|(_, lats)| lats).collect();
+
+    loop {
+        let mut results: Vec<_> = (0..threads).map(|_| Vec::new()).collect();
+        let stop = AtomicBool::new(false);
+
+        {
+            crossbeam::scope(|sc| {
+                for results in results.iter_mut() {
+                    let already = &already;
+                    let lattices = &lattices;
+                    let stop = &stop;
+                    sc.spawn(move |_| {
+                        while !stop.load(Ordering::Relaxed) {
+                            for result in main_rand1(&lattices) {
+                                if already.contains(&result) {
+                                    continue;
+                                }
+                                results.push(result);
+                            }
+                        }
+                    });
+                }
+
+                std::thread::sleep(Duration::from_millis(sleep_ms));
+
+                stop.store(true, Ordering::Relaxed);
+            }).unwrap();
+        }
+
+        for results in results.into_iter() {
+            for result in results.into_iter() {
+                if already.contains(&result) {
+                    continue
+                }
+                print_res(&result);
+                already.insert(result);
+            }
+        }
+    }
+}
+
+fn compute_step(mx: isize, my: isize, syx: isize, gen0: &HashSet<Vec2>) -> HashSet<Vec2> {
+    let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
+    let mut cts = HashMap::new();
+    for &(x, y) in gen0 {
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                let x2 = x + dx;
+                let y2 = y + dy;
+                let (cx2, cy2) = geometry2.canonicalize((x2, y2));
+                *cts.entry((cx2, cy2)).or_insert_with(|| 0) += 1;
+            }
+        }
+    }
+    let mut gen1 = HashSet::new();
+    for ((x, y), ct) in cts.into_iter() {
+        let living_curr = gen0.contains(&(x, y));
+
+        // If the future is alive, then link the neighborhood to it as well.
+        let living_next = match living_curr {
+            true => (3 <= ct && ct <= 4),
+            false => ct == 3,
+        };
+        if living_next {
+            gen1.insert((x, y));
+        }
+    }
+
+    gen1
+}
+
+fn main_rand1(lattices: &[Vec<Vec3>]) -> Vec<(Geometry3, Vec<Vec2>)> {
+    let lats = lattices.choose(&mut rand::thread_rng()).unwrap();
+    let &(mx, my, syx) = lats.choose(&mut rand::thread_rng()).unwrap();
+
+    let mut gen0 = Vec::new();
+    for x in 0..mx {
+        for y in 0..my {
+            if rand::thread_rng().gen() {
+                gen0.push((x, y));
+            }
+        }
+    }
+    gen0.sort();
+
+    let mut t = 0isize;
+    let mut already = HashMap::new();
+    loop {
+        if let Some(t0) = already.get(&gen0) {
+            return ana2(mx, my, syx, t - t0, gen0.iter().cloned().collect());
+        }
+        already.insert(gen0.clone(), t);
+
+        let gen1 = compute_step(mx, my, syx, &gen0.iter().cloned().collect());
+        let mut gen1: Vec<_> = gen1.into_iter().collect();
+        gen1.sort();
+
+        t += 1;
+        gen0 = gen1;
+    }
 }
