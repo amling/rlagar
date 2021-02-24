@@ -446,25 +446,7 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
                 },
                 None => {
                     // No stationary period: wave.
-
-                    // We want to show the "smallest" possible interpretted speed ordered by
-                    // movement distance, not by period.  E.g.  something whose minimum period jump
-                    // is (2, 1)c might be readable as 2c/2 which is strictly better (sort for
-                    // smallest total travel, break ties by period).
-
-                    let lat_2d = lat.1;
-                    // TODO: wtf is max relevant multipler?
-                    let (_, mult, (stx1, sty1, mt1)) = (1..100).map(|mult| {
-                        let (stx1, sty1) = lat_2d.canonicalize((mult * stx, mult * sty));
-                        (stx1.abs() + sty1.abs(), mult, (stx1, sty1, mult * mt))
-                    }).min().unwrap();
-
-                    if mult == 1 {
-                        println!("{:?}: {} wave", result, pretty_speed(stx, sty, mt));
-                    }
-                    else {
-                        println!("{:?}: {} wave (jump {})", result, pretty_speed(stx1, sty1, mt1), pretty_speed(stx, sty, mt));
-                    }
+                    println!("{:?}: {} wave", result, pretty_speed(stx, sty, mt));
                 },
             }
         }
