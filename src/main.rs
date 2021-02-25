@@ -635,8 +635,8 @@ fn main_rand(min_area: isize, max_area: isize) {
 
     let mut already = HashSet::new();
     let mut lattices = HashMap::new();
-    for mx in 1..=max_area {
-        for my in 1..=(max_area / mx) {
+    for mx in 5..=max_area {
+        for my in 5..=(max_area / mx) {
             let sz = mx * my;
             if sz < min_area {
                 continue;
