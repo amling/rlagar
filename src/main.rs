@@ -512,13 +512,13 @@ fn search(masks: &Vec<Vec<u64>>, flags: &impl Flags, s0: u64, results: &mut Hash
 fn tick(masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
     let mut s1 = 0;
     for (idx, masks) in masks.iter().enumerate() {
-        let mut s = 0;
+        let mut ct = 0;
         for mask in masks {
-            s += (s0 & mask).count_ones();
+            ct += (s0 & mask).count_ones();
         }
         let living = match ((s0 >> idx) & 1 == 1) {
-            true => (2 <= s && s <= 3),
-            false => (s == 3),
+            true => (2 <= ct && ct <= 3),
+            false => (ct == 3),
         };
         if living {
             s1 |= (1 << idx);
