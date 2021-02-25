@@ -12,6 +12,9 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::BufRead;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Duration;
 
 mod flags;
 mod lattice;
@@ -654,10 +657,14 @@ fn main_rand(min_area: isize, max_area: isize) {
 
     let (tx, rx) = std::sync::mpsc::sync_channel(1024);
 
+    let now = std::time::Instant::now();
+    let heartbeats: Vec<_> = (0..threads).map(|_| Arc::new(Mutex::new(now))).collect();
+
     crossbeam::scope(|sc| {
-        for _ in 0..threads {
+        for n in 0..threads {
             let lattices = &lattices;
             let tx = tx.clone();
+            let heartbeats = &heartbeats;
             sc.spawn(move |_| {
                 let mut already = HashSet::new();
                 loop {
@@ -665,21 +672,47 @@ fn main_rand(min_area: isize, max_area: isize) {
                         if already.contains(&result) {
                             continue;
                         }
-                        tx.send(result.clone()).unwrap();
+                        tx.send(Some(result.clone())).unwrap();
                         already.insert(result);
                     }
+
+                    {
+                        let mut hb = heartbeats[n].lock().unwrap();
+                        *hb = std::time::Instant::now();
+                    }
+                }
+            });
+        }
+
+        {
+            let tx = tx.clone();
+            sc.spawn(move |_| {
+                loop {
+                    std::thread::sleep(Duration::from_millis(60000));
+
+                    tx.send(None).unwrap();
                 }
             });
         }
 
         let mut already = HashSet::new();
         loop {
-            let result = rx.recv().unwrap();
-            if already.contains(&result) {
-                continue;
+            match rx.recv().unwrap() {
+                Some(result) => {
+                    if already.contains(&result) {
+                        continue;
+                    }
+                    print_res(&result);
+                    already.insert(result);
+                }
+                None => {
+                    let now = std::time::Instant::now();
+                    let mut hbs: Vec<_> = heartbeats.iter().enumerate().map(|(n, hb)| (n, *hb.lock().unwrap())).collect();
+                    hbs.sort_by_key(|&(n, hb)| (hb, n));
+                    let pieces: Vec<_> = hbs.into_iter().map(|(n, hb)| format!("#{}: {:?}", n, now - hb)).collect();
+                    debug_log(format!("Heartbeats: {}", pieces.join(", ")));
+                }
             }
-            print_res(&result);
-            already.insert(result);
         }
     }).unwrap();
 }
