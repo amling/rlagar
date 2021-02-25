@@ -329,23 +329,27 @@ fn ana2(mx: isize, my: isize, syx: isize, ttp: isize, gen0: HashSet<Vec2>) -> Ve
 fn ana2b(ret: &mut Vec<(Geometry3, Vec<Vec2>)>, mut lat: Geometry3, mut cells: HashSet<Vec3>) {
     'top: loop {
         let &(x1, y1, t1) = cells.iter().next().unwrap();
-        for &(x2, y2, t2) in &cells {
+        'p2: for &(x2, y2, t2) in &cells {
             if (x1, y1, t1) == (x2, y2, t2) {
                 continue;
             }
             let dx = x2 - x1;
             let dy = y2 - y1;
             let dt = t2 - t1;
-            let cells2 = cells.iter().map(|&(x, y, t)| lat.canonicalize((x + dx, y + dy, t + dt))).collect();
-            if cells == cells2 {
-                let mut lat2 = lat.materialize();
-                lat2.push((dx, dy, dt));
 
-                lat = LatticeCanonicalizable::canonicalize(lat2);
-                cells = cells.into_iter().map(|p| lat.canonicalize(p)).collect();
-
-                continue 'top;
+            for &(x, y, t) in cells.iter() {
+                if !cells.contains(&lat.canonicalize((x + dx, y + dy, t + dt))) {
+                    continue 'p2;
+                }
             }
+
+            let mut lat2 = lat.materialize();
+            lat2.push((dx, dy, dt));
+
+            lat = LatticeCanonicalizable::canonicalize(lat2);
+            cells = cells.into_iter().map(|p| lat.canonicalize(p)).collect();
+
+            continue 'top;
         }
 
         break;
