@@ -69,7 +69,7 @@ fn main() {
             let period = parts[4].parse().unwrap();
 
             for result in anas(mx, my, syx, s, period) {
-                print_res("", &result);
+                print_res(&result);
             }
         }
         return;
@@ -401,15 +401,13 @@ fn ana2b(ret: &mut Vec<(Geometry3, Vec<Vec2>)>, mut lat: Geometry3, mut cells: H
     ret.push((lat, cells));
 }
 
-fn print_res(prefix: impl AsRef<str>, result: &(Geometry3, Vec<Vec2>)) {
-    let prefix = prefix.as_ref();
-
+fn print_res(result: &(Geometry3, Vec<Vec2>)) {
     let &(lat, _) = result;
     let (stx, sty, mt) = lat.0.unwrap();
     let lat2d = lat.1;
 
     let print = |s| {
-        println!("{}{:?}: {}", prefix, result, s);
+        println!("{:?}: {}", result, s);
     };
 
     // now what is the rank of the intersection with t = 0?
@@ -657,7 +655,7 @@ fn main_rand(min_area: isize, max_area: isize) {
     let (tx, rx) = std::sync::mpsc::sync_channel(1024);
 
     crossbeam::scope(|sc| {
-        for n in 0..threads {
+        for _ in 0..threads {
             let lattices = &lattices;
             let tx = tx.clone();
             sc.spawn(move |_| {
@@ -667,7 +665,7 @@ fn main_rand(min_area: isize, max_area: isize) {
                         if already.contains(&result) {
                             continue;
                         }
-                        tx.send((n, result.clone())).unwrap();
+                        tx.send(result.clone()).unwrap();
                         already.insert(result);
                     }
                 }
@@ -676,11 +674,11 @@ fn main_rand(min_area: isize, max_area: isize) {
 
         let mut already = HashSet::new();
         loop {
-            let (n, result) = rx.recv().unwrap();
+            let result = rx.recv().unwrap();
             if already.contains(&result) {
                 continue;
             }
-            print_res(format!("[{}] ", n), &result);
+            print_res(&result);
             already.insert(result);
         }
     }).unwrap();
