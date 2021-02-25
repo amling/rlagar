@@ -405,6 +405,10 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
     let (stx, sty, mt) = lat.0.unwrap();
     let lat2d = lat.1;
 
+    let print = |s| {
+        println!("{:?}: {}", result, s);
+    };
+
     // now what is the rank of the intersection with t = 0?
     match lat2d.materialize().len() {
         0 => {
@@ -415,14 +419,14 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
             if mt == 1 {
                 assert_eq!(0, stx);
                 assert_eq!(0, sty);
-                println!("{:?}: still life", result);
+                print(format!("still life"));
             }
             else {
                 if stx == 0 && sty == 0 {
-                    println!("{:?}: p{} oscillator", result, mt);
+                    print(format!("p{} oscillator", mt));
                 }
                 else {
-                    println!("{:?}: {} space ship", result, pretty_speed(stx, sty, mt));
+                    print(format!("{} space ship", pretty_speed(stx, sty, mt)));
                 }
             }
         }
@@ -438,18 +442,18 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
 
                     if (stx, sty, mt) == (0, 0, 1) {
                         // Didn't really need to analyze bw_lat for this...
-                        println!("{:?}: still life wick", result);
+                        print(format!("still life wick"));
                     }
                     else if (stx, sty, mt) == (0, 0, ttp) {
-                        println!("{:?}: p{} oscillator wick", result, mt);
+                        print(format!("p{} oscillator wick", mt));
                     }
                     else {
-                        println!("{:?}: {} jump p{} oscillator wick", result, pretty_speed(stx, sty, mt), ttp);
+                        print(format!("{} jump p{} oscillator wick", pretty_speed(stx, sty, mt), ttp));
                     }
                 },
                 None => {
                     // No stationary period: wave.
-                    println!("{:?}: {} wave", result, pretty_speed(stx, sty, mt));
+                    print(format!("{} wave", pretty_speed(stx, sty, mt)));
                 },
             }
         }
@@ -457,15 +461,15 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
             // rank two: Real agar.
 
             if (stx, sty, mt) == (0, 0, 1) {
-                println!("{:?}: still life agar", result);
+                print(format!("still life agar"));
             }
             else if (stx, sty) == (0, 0) {
-                println!("{:?}: p{} agar", result, mt);
+                print(format!("p{} agar", mt));
             }
             else {
                 let bw_lat = LatticeCanonicalizable::canonicalize(lat.materialize().into_iter().map(|(x, y, t)| (t, x, y)).collect());
                 let (ttp,) = ((bw_lat.1).1).0.unwrap();
-                println!("{:?}: jump {} p{} agar", result, pretty_speed(stx, sty, mt), ttp);
+                print(format!("jump {} p{} agar", pretty_speed(stx, sty, mt), ttp));
             }
         }
         _ => {
