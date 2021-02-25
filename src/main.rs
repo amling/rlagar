@@ -19,7 +19,7 @@ use std::time::Duration;
 mod flags;
 mod lattice;
 
-use flags::Flags;
+use flags::SimpleFlags;
 use lattice::CanonicalLattice;
 use lattice::LatticeCanonicalizable;
 
@@ -154,7 +154,7 @@ fn gens(mx: isize, my: isize, syx: isize) {
         let masks = compute_masks(lattice);
         let masks = &masks;
 
-        let flags = Flags::new(1 << n);
+        let flags = SimpleFlags::new(1 << n);
         let flags = &flags;
 
         let workunits: Vec<_> = (0..(1 << workunit_bits)).collect();
@@ -471,7 +471,7 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
     }
 }
 
-fn search(lattice: Vec3, masks: &Vec<Vec<u64>>, flags: &Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
+fn search(lattice: Vec3, masks: &Vec<Vec<u64>>, flags: &SimpleFlags, s0: u64, results: &mut HashSet<(u64, isize)>) {
     let mut prev_vec = Vec::new();
     let mut prev_map = HashMap::new();
     let mut s = s0;

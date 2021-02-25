@@ -1,14 +1,14 @@
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
-pub struct Flags {
+pub struct SimpleFlags {
     vec: Vec<AtomicU64>,
 }
 
-impl Flags {
+impl SimpleFlags {
     pub fn new(sz: u64) -> Self {
         let sz = (sz + 63) / 64;
-        Flags {
+        SimpleFlags {
             vec: (0..sz).map(|_| AtomicU64::new(0)).collect(),
         }
     }
