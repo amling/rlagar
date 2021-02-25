@@ -79,7 +79,9 @@ fn main() {
     }
 
     if cmd == "rand" {
-        return main_rand();
+        let min_area = args.next().unwrap().parse().unwrap();
+        let max_area = args.next().unwrap().parse().unwrap();
+        return main_rand(min_area, max_area);
     }
 
     panic!("Unknown cmd {:?}", cmd);
@@ -627,16 +629,18 @@ fn compute_masks(lattice: Vec3) -> Vec<Vec<u64>> {
     acc
 }
 
-fn main_rand() {
+fn main_rand(min_area: isize, max_area: isize) {
     let threads = 8;
     let sleep_ms = 5000;
-    let max_lattice = 1000;
 
     let mut already = HashSet::new();
     let mut lattices = HashMap::new();
-    for mx in 1..=max_lattice {
-        for my in 1..=(max_lattice / mx) {
+    for mx in 1..=max_area {
+        for my in 1..=(max_area / mx) {
             let sz = mx * my;
+            if sz < min_area {
+                continue;
+            }
             let lats = lattices.entry(sz).or_insert_with(|| Vec::new());
             for syx in 0..=(mx / 2) {
                 lats.push((mx, my, syx));
