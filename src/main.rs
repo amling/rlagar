@@ -183,7 +183,7 @@ fn gens(mx: isize, my: isize, syx: isize) {
                             let suffix_bits = n - workunit_bits;
                             for suffix in 0..(1 << suffix_bits) {
                                 let s0 = (workunit << suffix_bits) | suffix;
-                                search(lattice, masks, flags, s0, results);
+                                search(masks, flags, s0, results);
                             }
                         }
                     });
@@ -235,7 +235,7 @@ fn gens(mx: isize, my: isize, syx: isize) {
                     }
                 }
 
-                s1 = tick(lattice, masks, s1);
+                s1 = tick(masks, s1);
             }
             panic!();
         });
@@ -482,7 +482,7 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
     }
 }
 
-fn search(lattice: Vec3, masks: &Vec<Vec<u64>>, flags: &impl Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
+fn search(masks: &Vec<Vec<u64>>, flags: &impl Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
     let mut prev_vec = Vec::new();
     let mut prev_map = HashMap::new();
     let mut s = s0;
@@ -501,7 +501,7 @@ fn search(lattice: Vec3, masks: &Vec<Vec<u64>>, flags: &impl Flags, s0: u64, res
         let t = prev_vec.len();
         prev_vec.push(s);
         prev_map.insert(s, t);
-        s = tick(lattice, masks, s);
+        s = tick(masks, s);
     }
 
     for sp in prev_vec {
@@ -509,12 +509,11 @@ fn search(lattice: Vec3, masks: &Vec<Vec<u64>>, flags: &impl Flags, s0: u64, res
     }
 }
 
-fn tick(lattice: Vec3, masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
-    let (mx, my, _syx) = lattice;
+fn tick(masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
     let mut s1 = 0;
-    for idx in 0..(mx * my) {
+    for (idx, masks) in masks.iter().enumerate() {
         let mut s = 0;
-        for mask in masks[idx as usize].iter() {
+        for mask in masks {
             s += (s0 & mask).count_ones();
         }
         let living = match ((s0 >> idx) & 1 == 1) {
