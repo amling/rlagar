@@ -12,9 +12,6 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::BufRead;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use std::time::Duration;
 
 mod flags;
 mod lattice;
@@ -72,7 +69,7 @@ fn main() {
             let period = parts[4].parse().unwrap();
 
             for result in anas(mx, my, syx, s, period) {
-                print_res(&result);
+                print_res("", &result);
             }
         }
         return;
@@ -400,13 +397,15 @@ fn ana2b(ret: &mut Vec<(Geometry3, Vec<Vec2>)>, mut lat: Geometry3, mut cells: H
     ret.push((lat, cells));
 }
 
-fn print_res(result: &(Geometry3, Vec<Vec2>)) {
+fn print_res(prefix: impl AsRef<str>, result: &(Geometry3, Vec<Vec2>)) {
+    let prefix = prefix.as_ref();
+
     let &(lat, _) = result;
     let (stx, sty, mt) = lat.0.unwrap();
     let lat2d = lat.1;
 
     let print = |s| {
-        println!("{:?}: {}", result, s);
+        println!("{}{:?}: {}", prefix, result, s);
     };
 
     // now what is the rank of the intersection with t = 0?
@@ -635,9 +634,7 @@ fn compute_masks(lattice: Vec3) -> Vec<Vec<u64>> {
 
 fn main_rand(min_area: isize, max_area: isize) {
     let threads = 8;
-    let sleep_ms = 5000;
 
-    let mut already = HashSet::new();
     let mut lattices = HashMap::new();
     for mx in 5..=max_area {
         for my in 5..=(max_area / mx) {
@@ -653,46 +650,36 @@ fn main_rand(min_area: isize, max_area: isize) {
     }
     let lattices: Vec<_> = lattices.into_iter().map(|(_, lats)| lats).collect();
 
-    loop {
-        debug_time("round", || {
-            let mut results: Vec<_> = (0..threads).map(|_| Vec::new()).collect();
-            let stop = AtomicBool::new(false);
+    let (tx, rx) = std::sync::mpsc::sync_channel(1024);
 
-            {
-                crossbeam::scope(|sc| {
-                    for results in results.iter_mut() {
-                        let already = &already;
-                        let lattices = &lattices;
-                        let stop = &stop;
-                        sc.spawn(move |_| {
-                            while !stop.load(Ordering::Relaxed) {
-                                for result in main_rand1(stop, lattices) {
-                                    if already.contains(&result) {
-                                        continue;
-                                    }
-                                    results.push(result);
-                                }
-                            }
-                        });
+    crossbeam::scope(|sc| {
+        for n in 0..threads {
+            let lattices = &lattices;
+            let tx = tx.clone();
+            sc.spawn(move |_| {
+                let mut already = HashSet::new();
+                loop {
+                    for result in main_rand1(lattices) {
+                        if already.contains(&result) {
+                            continue;
+                        }
+                        tx.send((n, result.clone())).unwrap();
+                        already.insert(result);
                     }
-
-                    std::thread::sleep(Duration::from_millis(sleep_ms));
-
-                    stop.store(true, Ordering::Relaxed);
-                }).unwrap();
-            }
-
-            for results in results.into_iter() {
-                for result in results.into_iter() {
-                    if already.contains(&result) {
-                        continue
-                    }
-                    print_res(&result);
-                    already.insert(result);
                 }
+            });
+        }
+
+        let mut already = HashSet::new();
+        loop {
+            let (n, result) = rx.recv().unwrap();
+            if already.contains(&result) {
+                continue;
             }
-        });
-    }
+            print_res(format!("[{}] ", n), &result);
+            already.insert(result);
+        }
+    }).unwrap();
 }
 
 fn compute_step(mx: isize, my: isize, syx: isize, gen0: &HashSet<Vec2>) -> HashSet<Vec2> {
@@ -725,7 +712,7 @@ fn compute_step(mx: isize, my: isize, syx: isize, gen0: &HashSet<Vec2>) -> HashS
     gen1
 }
 
-fn main_rand1(stop: &AtomicBool, lattices: &[Vec<Vec3>]) -> Vec<(Geometry3, Vec<Vec2>)> {
+fn main_rand1(lattices: &[Vec<Vec3>]) -> Vec<(Geometry3, Vec<Vec2>)> {
     let lats = lattices.choose(&mut rand::thread_rng()).unwrap();
     let &(mx, my, syx) = lats.choose(&mut rand::thread_rng()).unwrap();
 
@@ -742,9 +729,6 @@ fn main_rand1(stop: &AtomicBool, lattices: &[Vec<Vec3>]) -> Vec<(Geometry3, Vec<
     let mut t = 0isize;
     let mut already = HashMap::new();
     loop {
-        if stop.load(Ordering::Relaxed) {
-            return vec![];
-        }
         if let Some(t0) = already.get(&gen0) {
             return ana2(mx, my, syx, t - t0, gen0.iter().cloned().collect());
         }
