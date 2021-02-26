@@ -749,7 +749,7 @@ fn main_rand(min_area: isize, max_area: isize) {
                     if already.contains(&result) {
                         continue;
                     }
-                    print_res(&result);
+                    println!("{}", serde_json::to_string(&result).unwrap());
                     already.insert(result);
                 }
                 None => {
