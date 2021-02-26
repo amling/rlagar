@@ -58,26 +58,6 @@ fn main() {
         return;
     }
 
-    if cmd == "anas" {
-        let stdin = std::io::stdin();
-        for line in stdin.lock().lines() {
-            let line = line.unwrap();
-            let parts: Vec<_> = line.split(' ').collect();
-            assert_eq!(parts.len(), 8);
-
-            let mx = parts[0].parse().unwrap();
-            let my = parts[1].parse().unwrap();
-            let syx = parts[2].parse().unwrap();
-            let s = parts[3].parse().unwrap();
-            let period = parts[4].parse().unwrap();
-
-            for result in anas(mx, my, syx, s, period) {
-                print_res(&result);
-            }
-        }
-        return;
-    }
-
     if cmd == "rand" {
         let min_area = args.next().unwrap().parse().unwrap();
         let max_area = args.next().unwrap().parse().unwrap();
@@ -191,9 +171,15 @@ fn gens(mx: isize, my: isize, syx: isize) {
             }).unwrap();
         }
 
-        let results = results.into_iter().flatten();
+        let results = results.into_iter();
 
-        let results = results.filter_map(|(s, period)| {
+        // combine results from each thread and dedupe
+        let results = results.flatten().collect::<HashSet<_>>().into_iter();
+
+        // Eliminate more symmetry crap.  In particular things which have a lower-valued shift of
+        // themselves.  Also things which have a tighter spatial period (which we'll have found in
+        // a smaller lattice anyway).
+        let results = results.filter(|&(s, period)| {
             let mut s1 = s;
             for t in 0.. {
                 for dx in 0..mx {
@@ -219,7 +205,7 @@ fn gens(mx: isize, my: isize, syx: isize) {
                         if s2 < s {
                             // found lower value somewhere else, drop
                             //eprintln!("Drop lattice {:?} result {}, shift ({}, {}) at t {}", lattice, s, dx, dy, t);
-                            return None;
+                            return false;
                         }
 
                         if s2 == s {
@@ -227,10 +213,10 @@ fn gens(mx: isize, my: isize, syx: isize) {
                                 // found extra spatial symmetry, this can be found in smaller
                                 // geometry
                                 //eprintln!("Drop lattice {:?} result {} shift ({}, {})", lattice, s, dx, dy);
-                                return None;
+                                return false;
                             }
-                            let (dx, dy) = geometry2.canonicalize((-dx, -dy));
-                            return Some((s, period, t, dx, dy));
+                            assert!(period % t == 0);
+                            return true;
                         }
                     }
                 }
@@ -240,27 +226,28 @@ fn gens(mx: isize, my: isize, syx: isize) {
             panic!();
         });
 
+        // Now actually do expensive analysis of splitting into pieces, etc.
+        let results = results.flat_map(|(s, period)| {
+            let mut gen0 = HashSet::new();
+            for x in 0..mx {
+                for y in 0..my {
+                    let idx = y * mx + x;
+                    if (s >> idx) & 1 == 1 {
+                        gen0.insert((x, y));
+                    }
+                }
+            }
+            ana2(mx, my, syx, period, gen0)
+        });
+
         let results: BTreeSet<_> = results.collect();
 
         debug_log(format!("Lattice {:?} => {} results", lattice, results.len()));
 
-        for (s, period, t, dx, dy) in results {
-            println!("{} {} {} {} {} {} {} {}", mx, my, syx, s, period, t, dx, dy);
+        for res in results {
+            println!("{:?}", res);
         }
     });
-}
-
-fn anas(mx: isize, my: isize, syx: isize, s: u64, period: isize) -> Vec<(Geometry3, Vec<Vec2>)> {
-    let mut gen0 = HashSet::new();
-    for x in 0..mx {
-        for y in 0..my {
-            let idx = y * mx + x;
-            if (s >> idx) & 1 == 1 {
-                gen0.insert((x, y));
-            }
-        }
-    }
-    ana2(mx, my, syx, period, gen0)
 }
 
 fn ana2(mx: isize, my: isize, syx: isize, ttp: isize, gen0: HashSet<Vec2>) -> Vec<(Geometry3, Vec<Vec2>)> {
