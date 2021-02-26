@@ -413,9 +413,12 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
         println!("{:?}: {}", result, s);
     };
 
+    let mut shifts = Vec::new();
+    let show_cells = true;
+
     // now what is the rank of the intersection with t = 0?
-    match lat2d.materialize().len() {
-        0 => {
+    match &lat2d.materialize()[..] {
+        [] => {
             // rank zero: Oscillator or glider, probably discard since we don't expect
             // any interesting results.  Could analyze as oscillator/glider to give
             // period and shift.
@@ -433,8 +436,10 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
                     print(format!("{} space ship", pretty_speed(stx, sty, mt)));
                 }
             }
+
+            shifts.push((0, 0));
         }
-        1 => {
+        [(x1, y1)] => {
             // rank one: Wick of some sort.  Presumably all interesting although overpop-only
             // connection may mean a lot of boring stuff here.
 
@@ -460,8 +465,12 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
                     print(format!("{} wave", pretty_speed(stx, sty, mt)));
                 },
             }
+
+            for n in -5..=5 {
+                shifts.push((n * x1, n * y1));
+            }
         }
-        2 => {
+        [(x1, y1), (x2, y2)] => {
             // rank two: Real agar.
 
             if (stx, sty, mt) == (0, 0, 1) {
@@ -475,9 +484,40 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
                 let (ttp,) = ((bw_lat.1).1).0.unwrap();
                 print(format!("jump {} p{} agar", pretty_speed(stx, sty, mt), ttp));
             }
+
+            for n in -5..=5 {
+                for m in -5..=5 {
+                    shifts.push((n * x1 + m * x2, n * y1 + m * y2));
+                }
+            }
         }
         _ => {
             panic!();
+        }
+    }
+
+    if show_cells {
+        let mut cells = HashSet::new();
+        for (dx, dy) in shifts {
+            for &(x, y) in result.1.iter() {
+                cells.insert((x + dx, y + dy));
+            }
+        }
+
+        let min_x = cells.iter().map(|&(x, _y)| x).min().unwrap();
+        let max_x = cells.iter().map(|&(x, _y)| x).max().unwrap();
+        let min_y = cells.iter().map(|&(_x, y)| y).min().unwrap();
+        let max_y = cells.iter().map(|&(_x, y)| y).max().unwrap();
+
+        for y in min_y..=max_y {
+            let mut r = "   ".to_string();
+            for x in min_x..=max_x {
+                r.push(match cells.contains(&(x, y)) {
+                    true => '*',
+                    false => '.',
+                });
+            }
+            println!("{}", r)
         }
     }
 }
@@ -516,12 +556,13 @@ fn tick(masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
         for mask in masks {
             ct += (s0 & mask).count_ones();
         }
-        let living = match ((s0 >> idx) & 1 == 1) {
+        let mask = (1u64 << idx);
+        let living = match (s0 & mask != 0) {
             true => (2 <= ct && ct <= 3),
             false => (ct == 3),
         };
         if living {
-            s1 |= (1 << idx);
+            s1 |= mask;
         }
     }
     s1
