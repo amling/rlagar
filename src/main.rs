@@ -64,6 +64,16 @@ fn main() {
         return main_rand(min_area, max_area);
     }
 
+    if cmd == "printr" {
+        let stdin = std::io::stdin();
+        for line in stdin.lock().lines() {
+            let line = line.unwrap();
+            let res = serde_json::from_str(&line).unwrap();
+            print_res(&res);
+        }
+        return;
+    }
+
     panic!("Unknown cmd {:?}", cmd);
 }
 
@@ -245,7 +255,7 @@ fn gens(mx: isize, my: isize, syx: isize) {
         debug_log(format!("Lattice {:?} => {} results", lattice, results.len()));
 
         for res in results {
-            println!("{:?}", res);
+            println!("{}", serde_json::to_string(&res).unwrap());
         }
     });
 }
