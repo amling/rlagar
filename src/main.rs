@@ -414,7 +414,7 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
     };
 
     let mut shifts = Vec::new();
-    let show_cells = true;
+    let show_cells;
 
     // now what is the rank of the intersection with t = 0?
     match &lat2d.materialize()[..] {
@@ -427,13 +427,16 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
                 assert_eq!(0, stx);
                 assert_eq!(0, sty);
                 print(format!("still life"));
+                show_cells = false;
             }
             else {
                 if stx == 0 && sty == 0 {
                     print(format!("p{} oscillator", mt));
+                    show_cells = (mt > 2);
                 }
                 else {
                     print(format!("{} space ship", pretty_speed(stx, sty, mt)));
+                    show_cells = true;
                 }
             }
 
@@ -452,17 +455,21 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
                     if (stx, sty, mt) == (0, 0, 1) {
                         // Didn't really need to analyze bw_lat for this...
                         print(format!("still life wick"));
+                        show_cells = false;
                     }
                     else if (stx, sty, mt) == (0, 0, ttp) {
                         print(format!("p{} oscillator wick", mt));
+                        show_cells = (mt > 2);
                     }
                     else {
                         print(format!("{} jump p{} oscillator wick", pretty_speed(stx, sty, mt), ttp));
+                        show_cells = true;
                     }
                 },
                 None => {
                     // No stationary period: wave.
                     print(format!("{} wave", pretty_speed(stx, sty, mt)));
+                    show_cells = true;
                 },
             }
 
@@ -475,14 +482,17 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
 
             if (stx, sty, mt) == (0, 0, 1) {
                 print(format!("still life agar"));
+                show_cells = false;
             }
             else if (stx, sty) == (0, 0) {
                 print(format!("p{} agar", mt));
+                show_cells = false;
             }
             else {
                 let bw_lat = LatticeCanonicalizable::canonicalize(lat.materialize().into_iter().map(|(x, y, t)| (t, x, y)).collect());
                 let (ttp,) = ((bw_lat.1).1).0.unwrap();
                 print(format!("jump {} p{} agar", pretty_speed(stx, sty, mt), ttp));
+                show_cells = false;
             }
 
             for n in -5..=5 {
