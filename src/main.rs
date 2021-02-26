@@ -11,7 +11,9 @@ use rand::seq::SliceRandom;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fs::File;
 use std::io::BufRead;
+use std::io::BufReader;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -65,11 +67,43 @@ fn main() {
     }
 
     if cmd == "printr" {
-        let stdin = std::io::stdin();
-        for line in stdin.lock().lines() {
+        let mut already = HashSet::new();
+
+        let mut handle_line = |line: Result<String, std::io::Error>| {
             let line = line.unwrap();
             let res = serde_json::from_str(&line).unwrap();
+            if already.contains(&res) {
+                return;
+            }
             print_res(&res);
+            already.insert(res);
+        };
+
+        let mut handle_arg = |arg: &str| {
+            if arg == "-" {
+                let stdin = std::io::stdin();
+                for line in stdin.lock().lines() {
+                    handle_line(line);
+                }
+            }
+            else {
+                let f = File::open(arg).unwrap();
+                let r = BufReader::new(f);
+                for line in r.lines() {
+                    handle_line(line);
+                }
+            }
+        };
+
+        let args: Vec<_> = args.collect();
+        if args.is_empty() {
+            handle_arg("-");
+        }
+        else {
+            for arg in args {
+                println!("Starting {:?}...", arg);
+                handle_arg(&arg);
+            }
         }
         return;
     }
