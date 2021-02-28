@@ -564,11 +564,28 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
 }
 
 fn search(masks: &Vec<Vec<u64>>, flags: &impl Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
-    let mut prev_vec = Vec::new();
-    let mut prev_map = HashMap::new();
-    let mut s = s0;
+    // We unroll for optimization up to the very common case of successor already flagged.
+    if flags.get(s0) {
+        return;
+    }
+
+    let s1 = tick(masks, s0);
+
+    // The following unroll mishandles s0 == s1, but it's less common and misdetecting it as period
+    // 2 here will get cleaned up later anyway.
+
+    if flags.get(s1) {
+        flags.set(s0);
+        return;
+    }
+
+    let mut prev_vec = vec![s0, s1];
+    let mut prev_map: HashMap<_, _> = vec![(s0, 0), (s1, 1)].into_iter().collect();
+    let mut s = s1;
 
     loop {
+        s = tick(masks, s);
+
         if flags.get(s) {
             break;
         }
@@ -582,7 +599,6 @@ fn search(masks: &Vec<Vec<u64>>, flags: &impl Flags, s0: u64, results: &mut Hash
         let t = prev_vec.len();
         prev_vec.push(s);
         prev_map.insert(s, t);
-        s = tick(masks, s);
     }
 
     for sp in prev_vec {
