@@ -619,13 +619,10 @@ fn tick(masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
         for mask in masks {
             ct += (s0 & mask).count_ones();
         }
-        let mask = (1u64 << idx);
-        let living = match (s0 & mask != 0) {
-            true => (2 <= ct && ct <= 3),
-            false => (ct == 3),
-        };
-        if living {
-            s1 |= mask;
+        let self_ct = ((s0 >> idx) as u32) & 1;
+        let magic_ct = ct * 2 + self_ct;
+        if 5 <= magic_ct && magic_ct <= 7 {
+            s1 |= (1 << idx);
         }
     }
     s1
