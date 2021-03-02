@@ -206,6 +206,19 @@ fn gens(mx: isize, my: isize, syx: isize) {
         return gens2(mx, my, syx, &masks);
     }
 
+    let maybe_masks = all_maybe_map(masks.iter(), |m| {
+        match &m[..] {
+            [] => panic!(),
+            &[m] => Some((m, 0, 0)),
+            &[m1, m2] => Some((m1, m2, 0)),
+            &[m1, m2, m3] => Some((m1, m2, m3)),
+            _ => None,
+        }
+    });
+    if let Some(masks) = maybe_masks {
+        return gens2(mx, my, syx, &masks);
+    }
+
     gens2(mx, my, syx, &masks);
 }
 
@@ -222,6 +235,12 @@ impl Mask for u64 {
 impl Mask for (u64, u64) {
     fn count(&self, s: u64) -> u32 {
         (s & self.0).count_ones() + (s & self.1).count_ones()
+    }
+}
+
+impl Mask for (u64, u64, u64) {
+    fn count(&self, s: u64) -> u32 {
+        (s & self.0).count_ones() + (s & self.1).count_ones() + (s & self.2).count_ones()
     }
 }
 
