@@ -168,7 +168,74 @@ fn genl(n: isize) {
     }
 }
 
+fn all_maybe_map<T, R>(i: impl Iterator<Item=T>, mut f: impl FnMut(T) -> Option<R>) -> Option<Vec<R>> {
+    let mut ret = Vec::new();
+    for t in i {
+        if let Some(r) = f(t) {
+            ret.push(r);
+            continue;
+        }
+        return None;
+    }
+    Some(ret)
+}
+
 fn gens(mx: isize, my: isize, syx: isize) {
+    let masks = compute_masks((mx, my, syx));
+
+    let maybe_masks = all_maybe_map(masks.iter(), |m| {
+        match &m[..] {
+            [] => panic!(),
+            &[m] => Some(m),
+            _ => None,
+        }
+    });
+    if let Some(masks) = maybe_masks {
+        return gens2(mx, my, syx, &masks);
+    }
+
+    let maybe_masks = all_maybe_map(masks.iter(), |m| {
+        match &m[..] {
+            [] => panic!(),
+            &[m] => Some((m, 0)),
+            &[m1, m2] => Some((m1, m2)),
+            _ => None,
+        }
+    });
+    if let Some(masks) = maybe_masks {
+        return gens2(mx, my, syx, &masks);
+    }
+
+    gens2(mx, my, syx, &masks);
+}
+
+trait Mask: Send + Sync {
+    fn count(&self, s: u64) -> u32;
+}
+
+impl Mask for u64 {
+    fn count(&self, s: u64) -> u32 {
+        (s & self).count_ones()
+    }
+}
+
+impl Mask for (u64, u64) {
+    fn count(&self, s: u64) -> u32 {
+        (s & self.0).count_ones() + (s & self.1).count_ones()
+    }
+}
+
+impl Mask for Vec<u64> {
+    fn count(&self, s: u64) -> u32 {
+        let mut ct = 0;
+        for mask in self {
+            ct += (s & mask).count_ones();
+        }
+        ct
+    }
+}
+
+fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
     let lattice = (mx, my, syx);
     debug_time(format!("lattice {:?}", lattice), || {
         let n = mx * my;
@@ -177,9 +244,6 @@ fn gens(mx: isize, my: isize, syx: isize) {
         let workunit_bits = 6.min(n);
 
         let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
-
-        let masks = compute_masks(lattice);
-        let masks = &masks;
 
         let flags = SimpleFlags::new(1 << n);
         let flags = &flags;
@@ -563,7 +627,7 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
     }
 }
 
-fn search(masks: &Vec<Vec<u64>>, flags: &impl Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
+fn search(masks: &Vec<impl Mask>, flags: &impl Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
     // We unroll the first few iterations for heavy [mis]optimization.  In particular we don't
     // detect low [fundamental] period in some cases, but misdetecting them as a multiple will be
     // cleaned up later.
@@ -612,13 +676,10 @@ fn search(masks: &Vec<Vec<u64>>, flags: &impl Flags, s0: u64, results: &mut Hash
     }
 }
 
-fn tick(masks: &Vec<Vec<u64>>, s0: u64) -> u64 {
+fn tick(masks: &Vec<impl Mask>, s0: u64) -> u64 {
     let mut s1 = 0;
-    for (idx, masks) in masks.iter().enumerate() {
-        let mut ct = 0;
-        for mask in masks {
-            ct += (s0 & mask).count_ones();
-        }
+    for (idx, mask) in masks.iter().enumerate() {
+        let ct = mask.count(s0);
         let self_ct = ((s0 >> idx) as u32) & 1;
         let magic_ct = ct * 2 + self_ct;
         if 5 <= magic_ct && magic_ct <= 7 {
