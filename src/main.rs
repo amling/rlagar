@@ -24,7 +24,7 @@ mod flags;
 mod lattice;
 
 use flags::Flags;
-use flags::SimpleFlags;
+use flags::HackFlags;
 use lattice::CanonicalLattice;
 use lattice::LatticeCanonicalizable;
 
@@ -47,6 +47,8 @@ fn main() {
     }
 
     if cmd == "gens" {
+        let fsz = args.next().unwrap().parse().unwrap();
+
         let stdin = std::io::stdin();
         for line in stdin.lock().lines() {
             let line = line.unwrap();
@@ -57,7 +59,7 @@ fn main() {
             let my = parts[1].parse().unwrap();
             let syx = parts[2].parse().unwrap();
 
-            gens(mx, my, syx);
+            gens(mx, my, syx, fsz);
         }
         return;
     }
@@ -182,7 +184,7 @@ fn all_maybe_map<T, R>(i: impl Iterator<Item=T>, mut f: impl FnMut(T) -> Option<
     Some(ret)
 }
 
-fn gens(mx: isize, my: isize, syx: isize) {
+fn gens(mx: isize, my: isize, syx: isize, fsz: usize) {
     let masks = compute_masks((mx, my, syx));
 
     let maybe_masks = all_maybe_map(masks.iter(), |m| {
@@ -193,7 +195,7 @@ fn gens(mx: isize, my: isize, syx: isize) {
         }
     });
     if let Some(masks) = maybe_masks {
-        return gens2(mx, my, syx, &masks);
+        return gens2(mx, my, syx, fsz, &masks);
     }
 
     let maybe_masks = all_maybe_map(masks.iter(), |m| {
@@ -205,7 +207,7 @@ fn gens(mx: isize, my: isize, syx: isize) {
         }
     });
     if let Some(masks) = maybe_masks {
-        return gens2(mx, my, syx, &masks);
+        return gens2(mx, my, syx, fsz, &masks);
     }
 
     let maybe_masks = all_maybe_map(masks.iter(), |m| {
@@ -218,10 +220,10 @@ fn gens(mx: isize, my: isize, syx: isize) {
         }
     });
     if let Some(masks) = maybe_masks {
-        return gens2(mx, my, syx, &masks);
+        return gens2(mx, my, syx, fsz, &masks);
     }
 
-    gens2(mx, my, syx, &masks);
+    gens2(mx, my, syx, fsz, &masks);
 }
 
 trait Mask: Send + Sync {
@@ -256,7 +258,7 @@ impl Mask for Vec<u64> {
     }
 }
 
-fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
+fn gens2(mx: isize, my: isize, syx: isize, fsz: usize, masks: &Vec<impl Mask>) {
     let lattice = (mx, my, syx);
     debug_time(format!("lattice {:?}", lattice), || {
         let n = mx * my;
@@ -266,7 +268,7 @@ fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
 
         let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
 
-        let flags = SimpleFlags::new(1 << n);
+        let flags = HackFlags::new(fsz);
         let flags = &flags;
 
         let workunits: Vec<_> = (0..(1 << workunit_bits)).collect();
