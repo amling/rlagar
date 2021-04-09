@@ -24,7 +24,7 @@ mod flags;
 mod lattice;
 
 use flags::Flags;
-use flags::SimpleFlags;
+use flags::HackFlags;
 use lattice::CanonicalLattice;
 use lattice::LatticeCanonicalizable;
 
@@ -48,6 +48,7 @@ fn main() {
 
     if cmd == "gens" {
         let max_mask_bits = 20;
+        let fsz = args.next().unwrap().parse().unwrap();
 
         let stdin = std::io::stdin();
         for line in stdin.lock().lines() {
@@ -59,7 +60,7 @@ fn main() {
             let my = parts[1].parse().unwrap();
             let syx = parts[2].parse().unwrap();
 
-            gens(mx, my, syx, max_mask_bits);
+            gens(mx, my, syx, max_mask_bits, fsz);
         }
         return;
     }
@@ -172,7 +173,7 @@ fn genl(n: isize) {
     }
 }
 
-fn gens(mx: isize, my: isize, syx: isize, max_mask_bits: usize) {
+fn gens(mx: isize, my: isize, syx: isize, max_mask_bits: usize, fsz: usize) {
     let masks = debug_time("compute_masks", || compute_masks((mx, my, syx), max_mask_bits));
 
     let lattice = (mx, my, syx);
@@ -184,7 +185,7 @@ fn gens(mx: isize, my: isize, syx: isize, max_mask_bits: usize) {
 
         let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
 
-        let flags = SimpleFlags::new(1 << n);
+        let flags = HackFlags::new(fsz);
         let flags = &flags;
 
         let workunits: Vec<_> = (0..(1 << workunit_bits)).collect();

@@ -11,6 +11,7 @@ pub struct SimpleFlags {
 }
 
 impl SimpleFlags {
+    #[allow(dead_code)]
     pub fn new(sz: u64) -> Self {
         let sz = (sz + 63) / 64;
         SimpleFlags {
@@ -38,5 +39,40 @@ impl Flags for SimpleFlags {
                 return;
             }
         }
+    }
+}
+
+pub struct ZeroFlags();
+
+impl Flags for ZeroFlags {
+    fn get(&self, _idx: u64) -> bool {
+        return false;
+    }
+
+    fn set(&self, _idx: u64) {
+    }
+}
+
+pub struct HackFlags {
+    vec: Vec<AtomicU64>,
+}
+
+impl HackFlags {
+    pub fn new(sz: usize) -> Self {
+        HackFlags {
+            vec: (0..sz).map(|_| AtomicU64::new(0)).collect(),
+        }
+    }
+}
+
+impl Flags for HackFlags {
+    fn get(&self, idx: u64) -> bool {
+        let i = (idx % (self.vec.len() as u64)) as usize;
+        self.vec[i].load(Ordering::Relaxed) == idx
+    }
+
+    fn set(&self, idx: u64) {
+        let i = (idx % (self.vec.len() as u64)) as usize;
+        self.vec[i].store(idx, Ordering::Relaxed);
     }
 }
