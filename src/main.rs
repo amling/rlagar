@@ -15,8 +15,10 @@ use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::sync::Arc;
+use std::sync::Condvar;
 use std::sync::Mutex;
 use std::time::Duration;
+use std::time::Instant;
 
 mod flags;
 mod lattice;
@@ -271,10 +273,13 @@ fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
         let mut results: Vec<_> = workunits.iter().map(|_| HashSet::new()).collect();
 
         {
+            let cdl = Arc::new((Condvar::new(), Mutex::new(threads)));
+
             let q = SegQueue::new();
             for tuple in workunits.into_iter().zip(results.iter_mut()) {
                 q.push(tuple);
             }
+            let total = q.len();
 
             crossbeam::scope(|sc| {
                 for _ in 0..threads {
@@ -283,7 +288,7 @@ fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
                             let (workunit, results) = match q.pop() {
                                 Result::Ok(tuple) => tuple,
                                 Result::Err(PopError) => {
-                                    return;
+                                    break;
                                 }
                             };
 
@@ -293,7 +298,35 @@ fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
                                 search(masks, flags, s0, results);
                             }
                         }
+
+                        {
+                            let (c, m) = &*cdl;
+                            let mut m = m.lock().unwrap();
+                            let n = *m - 1;
+                            *m = n;
+                            if n == 0 {
+                                c.notify_one();
+                            }
+                        }
                     });
+                }
+
+                let mut last: Option<(Instant, usize)> = None;
+                let (c, m) = &*cdl;
+                let mut m = m.lock().unwrap();
+                while *m > 0 {
+                    m = c.wait_timeout(m, Duration::from_millis(60000)).unwrap().0;
+
+                    let now = (Instant::now(), q.len());
+
+                    if let Some(prev) = last {
+                        if prev.1 != now.1 {
+                            let left = (now.0 - prev.0).mul_f64(now.1 as f64).div_f64((prev.1 - now.1) as f64);
+                            debug_log(format!("Completed {}/{}, estimated {:?} left...", (total - now.1), total, left));
+                        }
+                    }
+
+                    last = Some(now);
                 }
             }).unwrap();
         }
