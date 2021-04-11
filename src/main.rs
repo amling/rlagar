@@ -262,7 +262,7 @@ fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
         let n = mx * my;
 
         let threads = 8;
-        let workunit_bits = 6.min(n);
+        let workunit_bits = 20.min(n);
 
         let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
 
