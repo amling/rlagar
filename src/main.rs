@@ -47,7 +47,7 @@ fn main() {
     }
 
     if cmd == "gens" {
-        let max_mask_bits = 20;
+        let max_mask_bits = args.next().unwrap().parse().unwrap();
         let fsz = args.next().unwrap().parse().unwrap();
 
         let stdin = std::io::stdin();
