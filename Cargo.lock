@@ -265,7 +265,6 @@ name = "rlagar"
 version = "1.0.0"
 dependencies = [
  "ars_aa 1.0.0",
- "ars_ds 1.0.0",
  "ars_graph 1.0.0",
  "chrono 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "crossbeam 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",

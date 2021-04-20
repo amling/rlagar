@@ -1,8 +1,7 @@
 #![allow(unused_parens)]
 
-#[macro_use]
-extern crate ars_ds;
-
+use ars_aa::lattice::LatticeCanonicalizable;
+use ars_aa::lattice::LatticeCanonicalizer;
 use crossbeam::queue::PopError;
 use crossbeam::queue::SegQueue;
 use std::collections::BTreeSet;
@@ -20,7 +19,6 @@ use std::time::Instant;
 mod ana;
 mod flags;
 mod geom;
-mod lattice;
 mod misc;
 mod rando;
 
@@ -29,8 +27,6 @@ use flags::SimpleFlags;
 use geom::Geometry3;
 use geom::Vec2;
 use geom::Vec3;
-use lattice::CanonicalLattice;
-use lattice::LatticeCanonicalizable;
 
 fn main() {
     let mut args = std::env::args().skip(1);

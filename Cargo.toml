@@ -10,7 +10,6 @@ crossbeam = "=0.7.3"
 rand = "=0.6.1"
 serde_json = "=1.0.48"
 ars_aa = { path = "ars/aa" }
-ars_ds = { path = "ars/ds" }
 ars_graph = { path = "ars/graph" }
 
 [profile.release]

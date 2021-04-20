@@ -1,3 +1,4 @@
+use ars_aa::lattice::LatticeCanonicalizer;
 use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -8,13 +9,11 @@ use std::time::Duration;
 
 use crate::ana;
 use crate::geom;
-use crate::lattice;
 use crate::misc;
 
 use geom::Geometry3;
 use geom::Vec2;
 use geom::Vec3;
-use lattice::CanonicalLattice;
 
 pub fn main_rand(min_area: isize, max_area: isize) {
     let threads = 8;

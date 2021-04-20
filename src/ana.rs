@@ -1,14 +1,13 @@
+use ars_aa::lattice::LatticeCanonicalizable;
+use ars_aa::lattice::LatticeCanonicalizer;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::geom;
-use crate::lattice;
 
 use geom::Geometry3;
 use geom::Vec2;
 use geom::Vec3;
-use lattice::CanonicalLattice;
-use lattice::LatticeCanonicalizable;
 
 fn compute_step_links(mx: isize, my: isize, syx: isize, gen0: &HashSet<Vec2>) -> (HashMap<Vec3, HashSet<(Vec3, Vec2)>>, HashSet<Vec2>) {
     let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
