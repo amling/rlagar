@@ -17,16 +17,18 @@ use std::time::Duration;
 use std::time::Instant;
 
 mod ana;
+mod engine;
 mod flags;
 mod geom;
 mod misc;
 mod rando;
 
+use engine::Engine;
+use engine::MaskEngine;
 use flags::Flags;
 use flags::SimpleFlags;
 use geom::Geometry3;
 use geom::Vec2;
-use geom::Vec3;
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -150,33 +152,21 @@ fn genl(n: isize) {
     }
 }
 
-fn all_maybe_map<T, R>(i: impl Iterator<Item=T>, mut f: impl FnMut(T) -> Option<R>) -> Option<Vec<R>> {
-    let mut ret = Vec::new();
-    for t in i {
-        if let Some(r) = f(t) {
-            ret.push(r);
-            continue;
-        }
-        return None;
-    }
-    Some(ret)
-}
-
 fn gens(mx: isize, my: isize, syx: isize) {
-    let masks = compute_masks((mx, my, syx));
+    let engine = MaskEngine::<Vec<u64>>::compile(mx, my, syx).unwrap();
 
-    let maybe_masks = all_maybe_map(masks.iter(), |m| {
+    let maybe_engine = engine.remask(|m| {
         match &m[..] {
             [] => panic!(),
             &[m] => Some(m),
             _ => None,
         }
     });
-    if let Some(masks) = maybe_masks {
-        return gens2(mx, my, syx, &masks);
+    if let Some(engine) = maybe_engine {
+        return gens2(mx, my, syx, &engine);
     }
 
-    let maybe_masks = all_maybe_map(masks.iter(), |m| {
+    let maybe_engine = engine.remask(|m| {
         match &m[..] {
             [] => panic!(),
             &[m] => Some((m, 0)),
@@ -184,11 +174,11 @@ fn gens(mx: isize, my: isize, syx: isize) {
             _ => None,
         }
     });
-    if let Some(masks) = maybe_masks {
-        return gens2(mx, my, syx, &masks);
+    if let Some(engine) = maybe_engine {
+        return gens2(mx, my, syx, &engine);
     }
 
-    let maybe_masks = all_maybe_map(masks.iter(), |m| {
+    let maybe_engine = engine.remask(|m| {
         match &m[..] {
             [] => panic!(),
             &[m] => Some((m, 0, 0)),
@@ -197,46 +187,14 @@ fn gens(mx: isize, my: isize, syx: isize) {
             _ => None,
         }
     });
-    if let Some(masks) = maybe_masks {
-        return gens2(mx, my, syx, &masks);
+    if let Some(engine) = maybe_engine {
+        return gens2(mx, my, syx, &engine);
     }
 
-    gens2(mx, my, syx, &masks);
+    gens2(mx, my, syx, &engine);
 }
 
-trait Mask: Send + Sync {
-    fn count(&self, s: u64) -> u32;
-}
-
-impl Mask for u64 {
-    fn count(&self, s: u64) -> u32 {
-        (s & self).count_ones()
-    }
-}
-
-impl Mask for (u64, u64) {
-    fn count(&self, s: u64) -> u32 {
-        (s & self.0).count_ones() + (s & self.1).count_ones()
-    }
-}
-
-impl Mask for (u64, u64, u64) {
-    fn count(&self, s: u64) -> u32 {
-        (s & self.0).count_ones() + (s & self.1).count_ones() + (s & self.2).count_ones()
-    }
-}
-
-impl Mask for Vec<u64> {
-    fn count(&self, s: u64) -> u32 {
-        let mut ct = 0;
-        for mask in self {
-            ct += (s & mask).count_ones();
-        }
-        ct
-    }
-}
-
-fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
+fn gens2<E: Engine<u64> + Send + Sync>(mx: isize, my: isize, syx: isize, engine: &E) {
     let lattice = (mx, my, syx);
     misc::debug_time(format!("lattice {:?}", lattice), || {
         let n = mx * my;
@@ -275,7 +233,7 @@ fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
                             let suffix_bits = n - workunit_bits;
                             for suffix in 0..(1 << suffix_bits) {
                                 let s0 = (workunit << suffix_bits) | suffix;
-                                search(masks, flags, s0, results);
+                                search(engine, flags, s0, results);
                             }
                         }
 
@@ -361,7 +319,7 @@ fn gens2(mx: isize, my: isize, syx: isize, masks: &Vec<impl Mask>) {
                     }
                 }
 
-                s1 = tick(masks, s1);
+                s1 = engine.tick(&s1);
             }
             panic!();
         });
@@ -518,7 +476,7 @@ fn print_res(result: &(Geometry3, Vec<Vec2>)) {
     }
 }
 
-fn search(masks: &Vec<impl Mask>, flags: &impl Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
+fn search(engine: &impl Engine<u64>, flags: &impl Flags, s0: u64, results: &mut HashSet<(u64, isize)>) {
     // We unroll the first few iterations for heavy [mis]optimization.  In particular we don't
     // detect low [fundamental] period in some cases, but misdetecting them as a multiple will be
     // cleaned up later.
@@ -527,13 +485,13 @@ fn search(masks: &Vec<impl Mask>, flags: &impl Flags, s0: u64, results: &mut Has
         return;
     }
 
-    let s1 = tick(masks, s0);
+    let s1 = engine.tick(&s0);
     if flags.get(s1) {
         flags.set(s0);
         return;
     }
 
-    let s2 = tick(masks, s1);
+    let s2 = engine.tick(&s1);
     if flags.get(s2) {
         flags.set(s1);
         flags.set(s0);
@@ -545,7 +503,7 @@ fn search(masks: &Vec<impl Mask>, flags: &impl Flags, s0: u64, results: &mut Has
     let mut s = s2;
 
     loop {
-        s = tick(masks, s);
+        s = engine.tick(&s);
 
         if flags.get(s) {
             break;
@@ -565,19 +523,6 @@ fn search(masks: &Vec<impl Mask>, flags: &impl Flags, s0: u64, results: &mut Has
     for sp in prev_vec {
         flags.set(sp);
     }
-}
-
-fn tick(masks: &Vec<impl Mask>, s0: u64) -> u64 {
-    let mut s1 = 0;
-    for (idx, mask) in masks.iter().enumerate() {
-        let ct = mask.count(s0);
-        let self_ct = ((s0 >> idx) as u32) & 1;
-        let magic_ct = ct * 2 + self_ct;
-        if 5 <= magic_ct && magic_ct <= 7 {
-            s1 |= (1 << idx);
-        }
-    }
-    s1
 }
 
 fn pretty_speed(x: isize, y: isize, mt: isize) -> String {
@@ -604,39 +549,4 @@ fn pretty_speed(x: isize, y: isize, mt: isize) -> String {
     }
 
     return ret;
-}
-
-fn compute_masks(lattice: Vec3) -> Vec<Vec<u64>> {
-    let (mx, my, syx) = lattice;
-    let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
-
-    let mut acc = Vec::new();
-    for idx in 0..(mx * my) {
-        let x = idx % mx;
-        let y = idx / mx;
-        let mut masks = Vec::new();
-        let mut add_mask = |idx2| {
-            let m = 1u64 << idx2;
-            for mask in masks.iter_mut() {
-                if *mask & m == 0 {
-                    *mask |= m;
-                    return;
-                }
-            }
-            masks.push(0);
-            *masks.last_mut().unwrap() |= m;
-        };
-        for dx in -1..=1 {
-            for dy in -1..=1 {
-                if (dx, dy) == (0, 0) {
-                    continue;
-                }
-                let (x2, y2) = geometry2.canonicalize((x + dx, y + dy));
-                let idx2 = y2 * mx + x2;
-                add_mask(idx2);
-            }
-        }
-        acc.push(masks);
-    }
-    acc
 }
