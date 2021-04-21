@@ -1,5 +1,4 @@
-use ars_aa::lattice::LatticeCanonicalizer;
-use rand::Rng;
+use core::hash::Hash;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -8,12 +7,22 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use crate::ana;
+use crate::engine;
 use crate::geom;
 use crate::misc;
 
+use engine::Engine;
+use engine::MaskEngine;
+use engine::SetEngine;
 use geom::Geometry3;
 use geom::Vec2;
 use geom::Vec3;
+
+enum RandEngine {
+    MaskU64(MaskEngine<u64>),
+    MaskU128(MaskEngine<u128>),
+    Set(SetEngine),
+}
 
 pub fn main_rand(min_area: isize, max_area: isize) {
     let threads = 8;
@@ -31,7 +40,22 @@ pub fn main_rand(min_area: isize, max_area: isize) {
             }
         }
     }
-    let lattices: Vec<_> = lattices.into_iter().map(|(_, lats)| lats).collect();
+    let lattices = lattices.into_iter().map(|(_, lats)| lats);
+    let lattices: Vec<_> = lattices.map(|lats| {
+        lats.into_iter().map(|(mx, my, syx)| {
+            let engine = if let Some(engine) = MaskEngine::<Vec<u64>>::compile(mx, my, syx).and_then(|e| e.remask_vec_single()) {
+                RandEngine::MaskU64(engine)
+            }
+            else if let Some(engine) = MaskEngine::<Vec<u128>>::compile(mx, my, syx).and_then(|e| e.remask_vec_single()) {
+                RandEngine::MaskU128(engine)
+            }
+            else {
+                RandEngine::Set(SetEngine::compile(mx, my, syx))
+            };
+
+            ((mx, my, syx), engine)
+        }).collect()
+    }).collect();
 
     let (tx, rx) = std::sync::mpsc::sync_channel(1024);
 
@@ -46,18 +70,15 @@ pub fn main_rand(min_area: isize, max_area: isize) {
             sc.spawn(move |_| {
                 let mut already = HashSet::new();
                 loop {
-                    for result in main_rand1(lattices) {
-                        if already.contains(&result) {
-                            continue;
+                    main_rand1(lattices, |result| {
+                        if !already.contains(&result) {
+                            tx.send(Some(result.clone())).unwrap();
+                            already.insert(result);
                         }
-                        tx.send(Some(result.clone())).unwrap();
-                        already.insert(result);
-                    }
 
-                    {
                         let mut hb = heartbeats[n].lock().unwrap();
                         *hb = std::time::Instant::now();
-                    }
+                    });
                 }
             });
         }
@@ -95,62 +116,64 @@ pub fn main_rand(min_area: isize, max_area: isize) {
     }).unwrap();
 }
 
-fn compute_step(mx: isize, my: isize, syx: isize, gen0: &HashSet<Vec2>) -> HashSet<Vec2> {
-    let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
-    let mut cts = HashMap::new();
-    for &(x, y) in gen0 {
-        for dx in -1..=1 {
-            for dy in -1..=1 {
-                let x2 = x + dx;
-                let y2 = y + dy;
-                let (cx2, cy2) = geometry2.canonicalize((x2, y2));
-                *cts.entry((cx2, cy2)).or_insert_with(|| 0) += 1;
-            }
-        }
-    }
-    let mut gen1 = HashSet::new();
-    for ((x, y), ct) in cts.into_iter() {
-        let living_curr = gen0.contains(&(x, y));
+fn main_rand1(lattices: &[Vec<(Vec3, RandEngine)>], f: impl FnMut((Geometry3, Vec<Vec2>))) {
+    let lats = lattices.choose(&mut rand::thread_rng()).unwrap();
+    let &((mx, my, syx), ref engine) = lats.choose(&mut rand::thread_rng()).unwrap();
 
-        let living_next = match living_curr {
-            true => (3 <= ct && ct <= 4),
-            false => ct == 3,
-        };
-        if living_next {
-            gen1.insert((x, y));
-        }
+    match engine {
+        RandEngine::MaskU64(engine) => main_rand2(mx, my, syx, engine, f),
+        RandEngine::MaskU128(engine) => main_rand2(mx, my, syx, engine, f),
+        RandEngine::Set(engine) => main_rand2(mx, my, syx, engine, f),
     }
-
-    gen1
 }
 
-fn main_rand1(lattices: &[Vec<Vec3>]) -> Vec<(Geometry3, Vec<Vec2>)> {
-    let lats = lattices.choose(&mut rand::thread_rng()).unwrap();
-    let &(mx, my, syx) = lats.choose(&mut rand::thread_rng()).unwrap();
+trait RandHashable {
+    type H: Hash + Eq;
 
-    let mut gen0 = Vec::new();
-    for x in 0..mx {
-        for y in 0..my {
-            if rand::thread_rng().gen() {
-                gen0.push((x, y));
-            }
-        }
+    fn to_hashable(&self) -> Self::H;
+}
+
+impl RandHashable for u64 {
+    type H = u64;
+
+    fn to_hashable(&self) -> u64 {
+        *self
     }
-    gen0.sort();
+}
 
+impl RandHashable for u128 {
+    type H = u128;
+
+    fn to_hashable(&self) -> u128 {
+        *self
+    }
+}
+
+impl RandHashable for HashSet<Vec2> {
+    type H = Vec<Vec2>;
+
+    fn to_hashable(&self) -> Vec<Vec2> {
+        let mut ret: Vec<_> = self.iter().cloned().collect();
+        ret.sort();
+        ret
+    }
+}
+
+fn main_rand2<S: RandHashable>(mx: isize, my: isize, syx: isize, engine: &impl Engine<S>, mut f: impl FnMut((Geometry3, Vec<Vec2>))) {
+    let mut s0 = engine.rand();
     let mut t = 0isize;
     let mut already = HashMap::new();
     loop {
-        if let Some(t0) = already.get(&gen0) {
-            return ana::ana2(mx, my, syx, t - t0, gen0.iter().cloned().collect());
+        let h0 = s0.to_hashable();
+        if let Some(t0) = already.get(&h0) {
+            for r in ana::ana2(mx, my, syx, t - t0, engine.decode(&s0)) {
+                f(r)
+            }
+            return;
         }
-        already.insert(gen0.clone(), t);
+        already.insert(h0, t);
 
-        let gen1 = compute_step(mx, my, syx, &gen0.iter().cloned().collect());
-        let mut gen1: Vec<_> = gen1.into_iter().collect();
-        gen1.sort();
-
+        s0 = engine.tick(&s0);
         t += 1;
-        gen0 = gen1;
     }
 }

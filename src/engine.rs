@@ -1,4 +1,5 @@
 use ars_aa::lattice::LatticeCanonicalizer;
+use rand::Rng;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -13,6 +14,7 @@ pub trait BitState {
     fn read_bit_u32(&self, idx: usize) -> u32;
     fn read_bit_bool(&self, idx: usize) -> bool;
     fn set_bit_true(&mut self, idx: usize);
+    fn rand(bits: usize) -> Self;
 }
 
 macro_rules! impl_bit_state {
@@ -36,6 +38,15 @@ macro_rules! impl_bit_state {
 
             fn set_bit_true(&mut self, idx: usize) {
                 *self |= (1 << idx);
+            }
+
+            fn rand(bits: usize) -> Self {
+                assert!(bits <= Self::sz());
+                let mut ret = rand::thread_rng().gen();
+                if bits < Self::sz() {
+                    ret &= ((1 as Self) << (bits) - 1);
+                }
+                ret
             }
         }
     }
@@ -83,18 +94,43 @@ macro_rules! impl_masks {
 impl_masks!(u64);
 impl_masks!(u128);
 
-pub trait Engine<S> {
-    fn tick(&self, s0: &S) -> S;
+#[derive(Clone)]
+#[derive(Copy)]
+struct LatticeShape {
+    mx: isize,
+    my: isize,
+    syx: isize,
 }
 
-pub struct MaskEngine<M>(Vec<M>);
+impl LatticeShape {
+    pub fn new(mx: isize, my: isize, syx: isize) -> Self {
+        LatticeShape {
+            mx: mx,
+            my: my,
+            syx: syx,
+        }
+    }
+
+    pub fn geom2(&self) -> Geometry2 {
+        (Some((self.syx, self.my)), (Some((self.mx,)), ()))
+    }
+}
+
+pub trait Engine<S> {
+    fn tick(&self, s0: &S) -> S;
+    fn rand(&self) -> S;
+    fn decode(&self, s: &S) -> HashSet<Vec2>;
+}
+
+pub struct MaskEngine<M>(LatticeShape, Vec<M>);
 
 impl<S: BitState> MaskEngine<Vec<S>> {
     pub fn compile(mx: isize, my: isize, syx: isize) -> Option<Self> {
         if mx * my > (S::sz() as isize) {
             return None;
         }
-        let geometry2 = (Some((syx, my)), (Some((mx,)), ()));
+        let shape = LatticeShape::new(mx, my, syx);
+        let geometry2 = shape.geom2();
 
         let mut acc = Vec::new();
         for idx in 0..(mx * my) {
@@ -123,14 +159,14 @@ impl<S: BitState> MaskEngine<Vec<S>> {
             }
             acc.push(masks);
         }
-        Some(MaskEngine(acc))
+        Some(MaskEngine(shape, acc))
     }
 }
 
 impl<M> MaskEngine<M> {
     pub fn remask<M2>(&self, mut f: impl FnMut(&M) -> Option<M2>) -> Option<MaskEngine<M2>> {
         let mut ret = Vec::new();
-        for m in self.0.iter() {
+        for m in self.1.iter() {
             match f(m) {
                 Some(m2) => {
                     ret.push(m2);
@@ -140,14 +176,26 @@ impl<M> MaskEngine<M> {
                 }
             }
         }
-        Some(MaskEngine(ret))
+        Some(MaskEngine(self.0, ret))
+    }
+}
+
+impl<S: BitState + Copy> MaskEngine<Vec<S>> {
+    pub fn remask_vec_single(&self) -> Option<MaskEngine<S>> {
+        self.remask(|m| {
+            match &m[..] {
+                [] => panic!(),
+                &[m] => Some(m),
+                _ => None,
+            }
+        })
     }
 }
 
 impl<S: BitState, M: Mask<S>> Engine<S> for MaskEngine<M> {
     fn tick(&self, s0: &S) -> S {
         let mut s1 = S::zero();
-        for (idx, mask) in self.0.iter().enumerate() {
+        for (idx, mask) in self.1.iter().enumerate() {
             let ct = mask.count(&s0);
             let self_ct = s0.read_bit_u32(idx);
             let magic_ct = ct * 2 + self_ct;
@@ -157,9 +205,33 @@ impl<S: BitState, M: Mask<S>> Engine<S> for MaskEngine<M> {
         }
         s1
     }
+
+    fn rand(&self) -> S {
+        S::rand((self.0.mx * self.0.my) as usize)
+    }
+
+    fn decode(&self, s: &S) -> HashSet<Vec2> {
+        let mut ret = HashSet::new();
+        for x in 0..self.0.mx {
+            for y in 0..self.0.my {
+                let idx = y * self.0.mx + x;
+                if s.read_bit_bool(idx as usize) {
+                    ret.insert((x, y));
+                }
+            }
+        }
+        ret
+    }
 }
 
-struct SetEngine(Geometry2);
+pub struct SetEngine(LatticeShape, Geometry2);
+
+impl SetEngine {
+    pub fn compile(mx: isize, my: isize, syx: isize) -> Self {
+        let shape = LatticeShape::new(mx, my, syx);
+        SetEngine(shape, shape.geom2())
+    }
+}
 
 impl Engine<HashSet<Vec2>> for SetEngine {
     fn tick(&self, s0: &HashSet<Vec2>) -> HashSet<Vec2> {
@@ -169,7 +241,7 @@ impl Engine<HashSet<Vec2>> for SetEngine {
                 for dy in -1..=1 {
                     let x2 = x + dx;
                     let y2 = y + dy;
-                    let (cx2, cy2) = self.0.canonicalize((x2, y2));
+                    let (cx2, cy2) = self.1.canonicalize((x2, y2));
                     *cts.entry((cx2, cy2)).or_insert_with(|| 0) += 1;
                 }
             }
@@ -188,5 +260,21 @@ impl Engine<HashSet<Vec2>> for SetEngine {
         }
 
         s1
+    }
+
+    fn rand(&self) -> HashSet<Vec2> {
+        let mut s = HashSet::new();
+        for x in 0..self.0.mx {
+            for y in 0..self.0.my {
+                if rand::thread_rng().gen() {
+                    s.insert((x, y));
+                }
+            }
+        }
+        s
+    }
+
+    fn decode(&self, s: &HashSet<Vec2>) -> HashSet<Vec2> {
+        s.clone()
     }
 }

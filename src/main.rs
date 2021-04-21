@@ -155,14 +155,7 @@ fn genl(n: isize) {
 fn gens(mx: isize, my: isize, syx: isize) {
     let engine = MaskEngine::<Vec<u64>>::compile(mx, my, syx).unwrap();
 
-    let maybe_engine = engine.remask(|m| {
-        match &m[..] {
-            [] => panic!(),
-            &[m] => Some(m),
-            _ => None,
-        }
-    });
-    if let Some(engine) = maybe_engine {
+    if let Some(engine) = engine.remask_vec_single() {
         return gens2(mx, my, syx, &engine);
     }
 
