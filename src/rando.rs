@@ -108,7 +108,8 @@ pub fn main_rand(min_area: isize, max_area: isize) {
                     let now = std::time::Instant::now();
                     let mut hbs: Vec<_> = heartbeats.iter().enumerate().map(|(n, hb)| (n, *hb.lock().unwrap())).collect();
                     hbs.sort_by_key(|&(n, hb)| (hb, n));
-                    let pieces: Vec<_> = hbs.into_iter().map(|(n, hb)| format!("#{}: {:?}", n, now - hb)).collect();
+                    // now.max(hb) as I've observed now < hb in the wild (?!)
+                    let pieces: Vec<_> = hbs.into_iter().map(|(n, hb)| format!("#{}: {:?}", n, now.max(hb) - hb)).collect();
                     misc::debug_log(format!("Heartbeats: {}", pieces.join(", ")));
                 }
             }
