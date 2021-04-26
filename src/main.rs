@@ -251,7 +251,7 @@ fn gens2<E: Engine<u64> + Send + Sync>(mx: isize, my: isize, syx: isize, engine:
                     let now = (Instant::now(), q.len());
 
                     if let Some(prev) = last {
-                        if now.0 > prev.0 && prev.1 != now.1 {
+                        if prev.1 != now.1 {
                             let left = (now.0 - prev.0).mul_f64(now.1 as f64).div_f64((prev.1 - now.1) as f64);
                             misc::debug_log(format!("Completed {}/{}, estimated {:?} left...", (total - now.1), total, left));
                         }

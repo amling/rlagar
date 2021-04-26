@@ -112,8 +112,7 @@ pub fn main_rand(min_area: isize, max_area: isize) {
                     // of them.
                     let now = std::time::Instant::now();
 
-                    // now.max(hb) as I've observed now < hb in the wild (?!)
-                    let pieces: Vec<_> = hbs.into_iter().map(|(n, hb)| format!("#{}: {:?}", n, now.max(hb) - hb)).collect();
+                    let pieces: Vec<_> = hbs.into_iter().map(|(n, hb)| format!("#{}: {:?}", n, now - hb)).collect();
                     misc::debug_log(format!("Heartbeats: {}", pieces.join(", ")));
                 }
             }
